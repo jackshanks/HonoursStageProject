@@ -1,54 +1,39 @@
 ﻿using System.Windows.Controls;
 using TrafficSim.Models;
+using TrafficSim.Rendering;
 
 namespace TrafficSim.Managers;
 
 public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
 {
+    private readonly GridRenderer _renderer = new GridRenderer(canvas);
     private int GridWidth { get; set; }
     private int GridHeight { get; set; }
-    private double CellSizeMeters { get; set; } = cellSizeMeters;
+    public double CellSizeMeters { get; set; } = cellSizeMeters;
     private double CellSizePixels { get; set; }
-        
+    
     private Cell[,]? _grid;
+
+    public double GetTotalWidthMeters() => GridWidth * CellSizeMeters;
+    public double GetTotalHeightMeters() => GridHeight * CellSizeMeters;
     
     public void CreateGrid(int width, int height, double cellSizePixels)
     {
         GridWidth = width;
         GridHeight = height;
         CellSizePixels = cellSizePixels;
-
-        // Initialize the grid array
+        
         _grid = new Cell[width, height];
-
-        // Clear the canvas
-        canvas.Children.Clear();
-
-        // Set canvas size
-        canvas.Width = width * cellSizePixels;
-        canvas.Height = height * cellSizePixels;
-
-        // Create grid cells
+        
         for (var x = 0; x < width; x++)
         {
             for (var y = 0; y < height; y++)
             {
-                var cell = new Cell(x, y, CellSizeMeters);
-                cell.UpdateVisual(cellSizePixels);
-                    
-                Canvas.SetLeft(cell.VisualElement, x * cellSizePixels);
-                Canvas.SetTop(cell.VisualElement, y * cellSizePixels);
-                    
-                canvas.Children.Add(cell.VisualElement);
-                    
-                // Add arrow element
-                Canvas.SetLeft(cell.ArrowElement, x * cellSizePixels);
-                Canvas.SetTop(cell.ArrowElement, y * cellSizePixels);
-                canvas.Children.Add(cell.ArrowElement);
-                    
-                _grid[x, y] = cell;
+                _grid[x, y] = new Cell(x, y, CellSizeMeters);
             }
         }
+        
+        _renderer.CreateVisuals(_grid, width, height, cellSizePixels);
     }
 
     private Cell? GetCell(int x, int y)
@@ -67,13 +52,26 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
         return GetCell(x, y);
     }
     
+    public Cell? GetCellFromWorldCoords(double worldX, double worldY)
+    {
+        var x = (int)(worldX / CellSizeMeters);
+        var y = (int)(worldY / CellSizeMeters);
+        return GetCell(x, y);
+    }
+    
+    public double GetPixelsPerMeter()
+    {
+        if (CellSizeMeters <= 0) return 1; 
+        return CellSizePixels / CellSizeMeters;
+    }
+    
     public void SetCellType(int x, int y, CellType type)
     {
         var cell = GetCell(x, y);
         if (cell == null) return;
         
-        cell.Type = type;
-        cell.UpdateVisual(CellSizePixels);
+        cell.SetType(type);
+        _renderer.UpdateCellVisual(cell, CellSizePixels);
     }
     
     public void SetCellDirection(int x, int y, TrafficDirection direction)
@@ -81,8 +79,8 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
         var cell = GetCell(x, y);
         if (cell == null) return;
         
-        cell.Direction = direction;
-        cell.UpdateVisual(CellSizePixels);
+        cell.SetDirection(direction);
+        _renderer.UpdateCellVisual(cell, CellSizePixels);
     }
     
     public void SetCellTypeAndDirection(int x, int y, CellType type, TrafficDirection direction)
@@ -90,9 +88,8 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
         var cell = GetCell(x, y);
         if (cell == null) return;
         
-        cell.Type = type;
-        cell.Direction = direction;
-        cell.UpdateVisual(CellSizePixels);
+        cell.SetTypeAndDirection(type, direction);
+        _renderer.UpdateCellVisual(cell, CellSizePixels);
     }
     
     public void ClearAllCells()
@@ -103,14 +100,23 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
         {
             for (var y = 0; y < GridHeight; y++)
             {
-                SetCellTypeAndDirection(x, y, CellType.Empty, TrafficDirection.None);
+                var cell = _grid[x, y];
+                cell.SetTypeAndDirection(CellType.Empty, TrafficDirection.None);
             }
         }
+        
+        _renderer.UpdateAllDirtyCells(_grid, GridWidth, GridHeight, CellSizePixels);
     }
     
     public bool HasGrid()
     {
         return _grid != null;
+    }
+    
+    public bool IsValidRoad(double worldX, double worldY)
+    {
+        var cell = GetCellFromWorldCoords(worldX, worldY);
+        return cell?.Type == CellType.Road && cell.Direction != TrafficDirection.None;
     }
     
     public static string GetCellInfo(Cell? cell)

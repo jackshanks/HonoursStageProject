@@ -27,7 +27,7 @@
                 </StackPanel>
             </GroupBox>
 
-            <GroupBox Header="Traffic Direction" Padding="5">
+            <GroupBox Header="Traffic Direction" Padding="5" Margin="0,0,10,0">
                 <StackPanel Orientation="Horizontal">
                     <RadioButton x:Name="RbNorth" Content="↑ North" GroupName="Direction" Margin="5,0" VerticalAlignment="Center"/>
                     <RadioButton x:Name="RbEast" Content="→ East" GroupName="Direction" Margin="5,0" VerticalAlignment="Center" IsChecked="True"/>
@@ -35,18 +35,36 @@
                     <RadioButton x:Name="RbWest" Content="← West" GroupName="Direction" Margin="5,0" VerticalAlignment="Center"/>
                 </StackPanel>
             </GroupBox>
+
+            <GroupBox Header="Simulation" Padding="5">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Speed:" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                    <Slider x:Name="SliderSimSpeed" Width="100" Minimum="0.1" Maximum="3" Value="1" 
+                            TickFrequency="0.1" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="TxtSimSpeed" Text="1.0x" Width="40" VerticalAlignment="Center" Margin="5,0,10,0"/>
+                    
+                    <CheckBox x:Name="ChkCollisions" Content="Enable Collisions" IsChecked="True" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                </StackPanel>
+            </GroupBox>
         </StackPanel>
 
         <!-- Main Canvas -->
         <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Background="#e8e8e8">
-            <Canvas x:Name="GridCanvas" Background="White" MouseLeftButtonDown="GridCanvas_MouseLeftButtonDown"
-                    MouseMove="GridCanvas_MouseMove" MouseLeftButtonUp="GridCanvas_MouseLeftButtonUp"/>
+            <Canvas x:Name="GridCanvas" Background="White" 
+                    MouseLeftButtonDown="GridCanvas_MouseLeftButtonDown"
+                    MouseMove="GridCanvas_MouseMove" 
+                    MouseLeftButtonUp="GridCanvas_MouseLeftButtonUp"
+                    MouseRightButtonDown="GridCanvas_RightClick"/>
         </ScrollViewer>
 
         <!-- Status Bar -->
         <StatusBar Grid.Row="2">
             <StatusBarItem>
-                <TextBlock x:Name="StatusText" Text="Ready. Click 'Create Grid' to start. Select a direction and draw roads."/>
+                <TextBlock x:Name="StatusText" Text="Ready. Click 'Create Grid' to start. Left-click to draw roads, Right-click to spawn cars."/>
+            </StatusBarItem>
+            <Separator/>
+            <StatusBarItem>
+                <TextBlock x:Name="CarCountText" Text="Cars: 0"/>
             </StatusBarItem>
         </StatusBar>
     </Grid>

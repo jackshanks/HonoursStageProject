@@ -12,61 +12,33 @@ public class Cell(int x, int y, double cellSizeMeters = 4.0)
     public double RealWorldY { get; } = y * cellSizeMeters; // Y position in meters
     public CellType Type { get; set; } = CellType.Empty;
     public TrafficDirection Direction { get; set; } = TrafficDirection.None;
-    public Rectangle VisualElement { get; } = new();
-    public Polygon ArrowElement { get; } = new();
-
-    public void UpdateVisual(double cellSizePixels)
+    
+    // Flag for updating cell visually if it needs updating
+    public bool IsDirty { get; set; } = true;
+    
+    public void SetTypeAndDirection(CellType type, TrafficDirection direction)
     {
-        VisualElement.Width = cellSizePixels;
-        VisualElement.Height = cellSizePixels;
-        VisualElement.Stroke = Brushes.LightGray;
-        VisualElement.StrokeThickness = 0.5;
+        if (Type == type && Direction == direction) return;
         
-        VisualElement.Fill = Type switch
-        {
-            CellType.Road => Brushes.Black,
-            CellType.Intersection => Brushes.Blue,
-            _ => Brushes.White
-        };
-        
-        UpdateArrow(cellSizePixels);
+        Type = type;
+        Direction = direction;
+        IsDirty = true;
     }
     
-    private void UpdateArrow(double cellSizePixels)
+    public void SetType(CellType type)
     {
-        ArrowElement.Points.Clear();
+        if (Type == type) return;
         
-        if (Type == CellType.Road && Direction != TrafficDirection.None)
-        {
-            var center = cellSizePixels / 2;
-            var arrowSize = cellSizePixels * 0.4;
-            
-            ArrowElement.Points =
-            [
-                new Point(center - arrowSize / 2, center + arrowSize / 2), // Left Base
-                new Point(center, center - arrowSize / 2), // Tip of arrow
-                new Point(center + arrowSize / 2, center + arrowSize / 2) // Right Base
-            ];
-            
-            double angle = Direction switch
-            {
-                TrafficDirection.East => 90,
-                TrafficDirection.South => 180,
-                TrafficDirection.West => 270,
-                _ => 0
-            };
-            
-            // !This makes this entire section work by offloading the rotation of arrows to the renderer
-            ArrowElement.RenderTransform = new RotateTransform(angle, center, center);
-            ArrowElement.Fill = Brushes.Yellow;
-            ArrowElement.Stroke = Brushes.Black;
-            ArrowElement.StrokeThickness = 1;
-            ArrowElement.Visibility = Visibility.Visible;
-        }
-        else
-        {
-            ArrowElement.Visibility = Visibility.Collapsed;
-        }
+        Type = type;
+        IsDirty = true;
+    }
+    
+    public void SetDirection(TrafficDirection direction)
+    {
+        if (Direction == direction) return;
+        
+        Direction = direction;
+        IsDirty = true;
     }
 }
 
