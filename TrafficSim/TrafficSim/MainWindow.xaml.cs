@@ -110,6 +110,8 @@ public partial class MainWindow : Window
                             _accumulatedTime -= FixedTimeStep;
                         }
                     }
+                    
+                    await Task.Delay(1, token);
                 }
                 catch (OperationCanceledException)
                 {
