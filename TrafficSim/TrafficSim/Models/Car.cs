@@ -99,9 +99,6 @@ public class Car
     
     public bool IsCarAhead(Car other, double laneWidth = 4.0)
     {
-        if (Direction != other.Direction) 
-            return false;
-        
         var perpDistance = Direction switch
         {
             TrafficDirection.North or TrafficDirection.South => Math.Abs(X - other.X),

@@ -14,8 +14,10 @@ public partial class MainWindow : Window
     private readonly TrafficManager _trafficManager;
     private readonly CarRenderer _carRenderer;
     private readonly DispatcherTimer _renderTimer;
-    private readonly Stopwatch _stopwatch;
-
+    
+    private Task? _physicsTask;
+    private CancellationTokenSource? _physicsCancellationToken;
+    private readonly Lock _physicsLock = new();
 
     // Fixed time-step physics config for pure logic
     private const double FixedTimeStep = 1.0 / 60.0;
@@ -25,6 +27,10 @@ public partial class MainWindow : Window
 
     private bool _isDrawing;
     private Cell? _lastDrawnCell;
+    
+    private double _simulationSpeed = 1.0;
+    
+    private volatile bool _collisionsEnabled;
 
     public MainWindow()
     {
@@ -35,46 +41,112 @@ public partial class MainWindow : Window
 
         CreateInitialGrid();
 
-        _stopwatch = Stopwatch.StartNew();
-        _lastTicks = _stopwatch.ElapsedTicks;
+        var stopwatch = Stopwatch.StartNew();
+        _lastTicks = stopwatch.ElapsedTicks;
+        
+        _collisionsEnabled = ChkCollisions.IsChecked == true;
+        
+        ChkCollisions.Checked += (_, _) => _collisionsEnabled = true;
+        ChkCollisions.Unchecked += (_, _) => _collisionsEnabled = false;
+        
+        StartPhysicsThread();
 
-        // Render timer runs at 60fps regardless of physics updating, currently set at 60 aswell but could change
+        // Render timer runs at 60fps on UI thread
         _renderTimer = new DispatcherTimer(DispatcherPriority.Render)
         {
             Interval = TimeSpan.FromMilliseconds(16)
         };
-        _renderTimer.Tick += GameLoop;
+        _renderTimer.Tick += RenderLoop;
         _renderTimer.Start();
 
-        SliderSimSpeed.ValueChanged += (_, _) => { TxtSimSpeed.Text = $"{SliderSimSpeed.Value:F1}x"; };
+        SliderSimSpeed.ValueChanged += (_, _) =>
+        {
+            lock (_physicsLock)
+            {
+                _simulationSpeed = SliderSimSpeed.Value;
+            }
+            TxtSimSpeed.Text = $"{SliderSimSpeed.Value:F1}x";
+        };
     }
-
-    private void GameLoop(object? sender, EventArgs e)
+    
+    private void StartPhysicsThread()
     {
-        var currentTicks = _stopwatch.ElapsedTicks;
-        var elapsedTicks = currentTicks - _lastTicks;
-        _lastTicks = currentTicks;
+        _physicsCancellationToken = new CancellationTokenSource();
+        var token = _physicsCancellationToken.Token;
 
-        var deltaTime = (double)elapsedTicks / Stopwatch.Frequency;
-        var adjustedDeltaTime = deltaTime * SliderSimSpeed.Value;
-        _accumulatedTime += adjustedDeltaTime;
-
-        if (_accumulatedTime > MaxAccumulatedTime)
+        _physicsTask = Task.Run(async () =>
         {
-            _accumulatedTime = MaxAccumulatedTime;
-        }
+            var physicsStopwatch = Stopwatch.StartNew();
+            var lastPhysicsTicks = physicsStopwatch.ElapsedTicks;
 
-        var collisionsEnabled = ChkCollisions.IsChecked == true;
-        while (_accumulatedTime >= FixedTimeStep)
+            while (!token.IsCancellationRequested)
+            {
+                try
+                {
+                    var currentTicks = physicsStopwatch.ElapsedTicks;
+                    var elapsedTicks = currentTicks - lastPhysicsTicks;
+                    lastPhysicsTicks = currentTicks;
+
+                    var deltaTime = (double)elapsedTicks / Stopwatch.Frequency;
+                    
+                    lock (_physicsLock)
+                    {
+                        var adjustedDeltaTime = deltaTime * _simulationSpeed;
+                        _accumulatedTime += adjustedDeltaTime;
+
+                        if (_accumulatedTime > MaxAccumulatedTime)
+                        {
+                            _accumulatedTime = MaxAccumulatedTime;
+                        }
+                    }
+                    
+                    var collisionsEnabled = _collisionsEnabled;
+                    
+                    lock (_physicsLock)
+                    {
+                        while (_accumulatedTime >= FixedTimeStep)
+                        {
+                            _trafficManager.UpdatePhysics(FixedTimeStep, collisionsEnabled);
+                            _accumulatedTime -= FixedTimeStep;
+                        }
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Physics thread error: {ex.Message}");
+                }
+            }
+        }, token);
+    }
+    
+    private void StopPhysicsThread()
+    {
+        _physicsCancellationToken?.Cancel();
+        
+        if (_physicsTask != null)
         {
-            _trafficManager.UpdatePhysics(FixedTimeStep, collisionsEnabled);
-            _accumulatedTime -= FixedTimeStep;
+            var timeout = TimeSpan.FromMilliseconds(500);
+            var completed = _physicsTask.Wait(timeout);
+            
+            if (!completed)
+            {
+                Debug.WriteLine("Physics thread did not stop within timeout, continuing shutdown.");
+            }
         }
-
+        
+        _physicsCancellationToken?.Dispose();
+    }
+    
+    private void RenderLoop(object? sender, EventArgs e)
+    {
         var pixelsPerMeter = _gridManager.GetPixelsPerMeter();
         var cars = _trafficManager.GetCars();
         _carRenderer.UpdateAllCarVisuals(cars, pixelsPerMeter);
-
+        
         CarCountText.Text = $"Cars: {_trafficManager.GetCarCount()}";
     }
 
@@ -106,6 +178,7 @@ public partial class MainWindow : Window
 
             _gridManager.CreateGrid(width, height, cellSize);
             _trafficManager.ClearTraffic();
+            _carRenderer.ClearAllVisuals();
             StatusText.Text =
                 $"Grid created: {width} x {height} cells (each cell = 4m x 4m). Total area: {width * 4}m x {height * 4}m";
         }
@@ -122,6 +195,7 @@ public partial class MainWindow : Window
 
         _gridManager.ClearAllCells();
         _trafficManager.ClearTraffic();
+        _carRenderer.ClearAllVisuals();
         StatusText.Text = "Grid and traffic cleared.";
     }
 
@@ -211,5 +285,13 @@ public partial class MainWindow : Window
         if (RbWest.IsChecked == true) return TrafficDirection.West;
 
         return TrafficDirection.East;
+    }
+    
+    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+    {
+        _renderTimer.Stop();
+        StopPhysicsThread();
+        _gridManager.Dispose();
+        base.OnClosing(e);
     }
 }

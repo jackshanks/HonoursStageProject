@@ -1,13 +1,14 @@
-﻿using System.Windows.Controls;
+﻿using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
-using System.Windows.Shapes;
 using TrafficSim.Models;
 
 namespace TrafficSim.Rendering;
 
-public class CarRenderer(Canvas canvas)
+public class CarRenderer
 {
-    private readonly Dictionary<Guid, Rectangle> _carVisuals = new();
+    private readonly Canvas _canvas;
+    private readonly DrawingVisual _carsVisual;
     
     private static readonly Dictionary<CarColor, Brush> ColorBrushMap = new()
     {
@@ -21,69 +22,77 @@ public class CarRenderer(Canvas canvas)
         { CarColor.DarkOrange, Brushes.DarkOrange }
     };
     
-    public void UpdateCarVisual(Car car, double pixelsPerMeter)
+    private static readonly Pen BlackPen = new(Brushes.Black, 0.5);
+    
+    static CarRenderer()
     {
-        if (!_carVisuals.TryGetValue(car.Id, out var rectangle))
-        {
-            rectangle = new Rectangle
-            {
-                Fill = ColorBrushMap.GetValueOrDefault(car.Color, Brushes.Gray),
-                Stroke = Brushes.Black,
-                StrokeThickness = 0.5
-            };
-            Panel.SetZIndex(rectangle, 100);
-            canvas.Children.Add(rectangle);
-            _carVisuals[car.Id] = rectangle;
-        }
-        
-        var widthPx = Car.WidthMeters * pixelsPerMeter;
-        var lengthPx = Car.LengthMeters * pixelsPerMeter;
-        
-        if (car.Direction is TrafficDirection.North or TrafficDirection.South)
-        {
-            rectangle.Width = widthPx;
-            rectangle.Height = lengthPx;
-        }
-        else
-        {
-            rectangle.Width = lengthPx;
-            rectangle.Height = widthPx;
-        }
-        
-        Canvas.SetLeft(rectangle, car.X * pixelsPerMeter - rectangle.Width / 2);
-        Canvas.SetTop(rectangle, car.Y * pixelsPerMeter - rectangle.Height / 2);
+        BlackPen.Freeze();
+    }
+    
+    public CarRenderer(Canvas canvas)
+    {
+        _canvas = canvas;
+        _carsVisual = new DrawingVisual();
+
+        var host = new DrawingVisualHost(_carsVisual);
+        Panel.SetZIndex(host, 100);
+        _canvas.Children.Add(host);
     }
     
     public void UpdateAllCarVisuals(IReadOnlyList<Car> cars, double pixelsPerMeter)
     {
-        var currentCarIds = new HashSet<Guid>(cars.Select(c => c.Id));
-        
-        var removedIds = _carVisuals.Keys.Where(id => !currentCarIds.Contains(id)).ToList();
-        foreach (var id in removedIds)
-        {
-            RemoveCarVisual(id);
-        }
+        using var dc = _carsVisual.RenderOpen();
         
         foreach (var car in cars)
         {
-            UpdateCarVisual(car, pixelsPerMeter);
+            DrawCar(dc, car, pixelsPerMeter);
         }
     }
     
-    public void RemoveCarVisual(Guid carId)
+    private void DrawCar(DrawingContext dc, Car car, double pixelsPerMeter)
     {
-        if (!_carVisuals.TryGetValue(carId, out var rectangle)) return;
+        var widthPx = Car.WidthMeters * pixelsPerMeter;
+        var lengthPx = Car.LengthMeters * pixelsPerMeter;
         
-        canvas.Children.Remove(rectangle);
-        _carVisuals.Remove(carId);
+        var brush = ColorBrushMap.GetValueOrDefault(car.Color, Brushes.Gray);
+        
+        var carX = car.X * pixelsPerMeter;
+        var carY = car.Y * pixelsPerMeter;
+        
+        var rect = new Rect(-lengthPx / 2, -widthPx / 2, lengthPx, widthPx);
+        
+        var isVertical = car.Direction is TrafficDirection.North or TrafficDirection.South;
+        if (isVertical)
+        {
+            rect = new Rect(-widthPx / 2, -lengthPx / 2, widthPx, lengthPx);
+        }
+        
+        dc.PushTransform(new TranslateTransform(carX, carY));
+        dc.DrawRectangle(brush, BlackPen, rect);
+        dc.Pop();
     }
     
     public void ClearAllVisuals()
     {
-        foreach (var rectangle in _carVisuals.Values)
+        using var dc = _carsVisual.RenderOpen();
+    }
+    
+    private class DrawingVisualHost : FrameworkElement
+    {
+        private readonly VisualCollection _children;
+        
+        public DrawingVisualHost(DrawingVisual visual)
         {
-            canvas.Children.Remove(rectangle);
+            _children = new VisualCollection(this) { visual };
         }
-        _carVisuals.Clear();
+        
+        protected override int VisualChildrenCount => _children.Count;
+        
+        protected override Visual GetVisualChild(int index)
+        {
+            if (index < 0 || index >= _children.Count)
+                throw new ArgumentOutOfRangeException(nameof(index));
+            return _children[index];
+        }
     }
 }
