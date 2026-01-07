@@ -26,6 +26,7 @@ public partial class MainWindow : Window
     private const double FixedTimeStep = 1.0 / 60.0;
     private const double MaxAccumulatedTime = 0.1; // Cap to amount of time passage to prevent spiral
     private double _accumulatedTime;
+    private long _lastTicks;
 
     private bool _isDrawing;
     private Cell? _lastDrawnCell;
@@ -44,6 +45,9 @@ public partial class MainWindow : Window
         _carRenderer = new CarRenderer(GridCanvas);
 
         CreateInitialGrid();
+
+        var stopwatch = Stopwatch.StartNew();
+        _lastTicks = stopwatch.ElapsedTicks;
         
         _collisionsEnabled = ChkCollisions.IsChecked == true;
         
