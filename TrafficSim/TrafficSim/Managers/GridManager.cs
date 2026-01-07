@@ -4,6 +4,11 @@ using TrafficSim.Rendering;
 
 namespace TrafficSim.Managers;
 
+/// <summary>
+/// Creates and manages the grid
+/// </summary>
+/// <param name="canvas">UI Element</param>
+/// <param name="cellSizeMeters">Assigns each cell to a meter length for real world comparisons</param>
 public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
 {
     private readonly GridRenderer _renderer = new GridRenderer(canvas);
@@ -27,6 +32,7 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
             _gridLock.ExitReadLock();
         }
     }
+    
     public double GetTotalHeightMeters()
     {
         _gridLock.EnterReadLock();
@@ -90,6 +96,7 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
             _gridLock.ExitReadLock();
         }
     }
+    
     public Cell? GetCellFromWorldCoords(double worldX, double worldY)
     {
         _gridLock.EnterReadLock();
@@ -117,7 +124,7 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
             _gridLock.ExitReadLock();
         }
     }
-
+    
     public double GetPixelsPerMeter()
     {
         _gridLock.EnterReadLock();
@@ -198,7 +205,7 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
                     cell.SetTypeAndDirection(CellType.Empty, TrafficDirection.None);
                 }
             }
-            
+            // Maybe doesn't work? "Dirty" methods need reviewing
             _renderer.UpdateAllDirtyCells(_grid, GridWidth, GridHeight, CellSizePixels);
         }
         finally
@@ -238,7 +245,7 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
     
     public static string GetCellInfo(Cell? cell)
     {
-        if (cell == null) return "No cell";
+        if (cell == null) return "Error: Cell not found";
             
         var directionText = cell.Direction != TrafficDirection.None ? $" | Direction: {cell.Direction}" : "";
         return $"Grid: ({cell.X}, {cell.Y}) | Position: ({cell.RealWorldX:F1}m, {cell.RealWorldY:F1}m) | Type: {cell.Type}{directionText}";

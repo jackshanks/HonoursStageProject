@@ -8,6 +8,9 @@ using TrafficSim.Rendering;
 
 namespace TrafficSim;
 
+/// <summary>
+/// Interaction logic for physics and UI. Uses threading to try to increase preformance with large numbers of cars
+/// </summary>
 public partial class MainWindow : Window
 {
     private readonly GridManager _gridManager;
@@ -23,14 +26,15 @@ public partial class MainWindow : Window
     private const double FixedTimeStep = 1.0 / 60.0;
     private const double MaxAccumulatedTime = 0.1; // Cap to amount of time passage to prevent spiral
     private double _accumulatedTime;
-    private long _lastTicks;
 
     private bool _isDrawing;
     private Cell? _lastDrawnCell;
     
     private double _simulationSpeed = 1.0;
-    
     private volatile bool _collisionsEnabled;
+    
+    private bool _isNetworkBuilt;
+    private bool _isSimulationRunning;
 
     public MainWindow()
     {
@@ -40,18 +44,13 @@ public partial class MainWindow : Window
         _carRenderer = new CarRenderer(GridCanvas);
 
         CreateInitialGrid();
-
-        var stopwatch = Stopwatch.StartNew();
-        _lastTicks = stopwatch.ElapsedTicks;
         
         _collisionsEnabled = ChkCollisions.IsChecked == true;
         
         ChkCollisions.Checked += (_, _) => _collisionsEnabled = true;
         ChkCollisions.Unchecked += (_, _) => _collisionsEnabled = false;
-        
-        StartPhysicsThread();
 
-        // Render timer runs at 60fps on UI thread
+        // render timer at 60fps on main thread
         _renderTimer = new DispatcherTimer(DispatcherPriority.Render)
         {
             Interval = TimeSpan.FromMilliseconds(16)
@@ -67,6 +66,31 @@ public partial class MainWindow : Window
             }
             TxtSimSpeed.Text = $"{SliderSimSpeed.Value:F1}x";
         };
+        
+        UpdateUiState();
+    }
+    
+    private void UpdateUiState()
+    {
+        BtnBuildNetwork.IsEnabled = !_isSimulationRunning;
+        BtnCreateGrid.IsEnabled = !_isSimulationRunning;
+        BtnClear.IsEnabled = !_isSimulationRunning;
+        
+        BtnStartSim.IsEnabled = _isNetworkBuilt && !_isSimulationRunning;
+        BtnStopSim.IsEnabled = _isSimulationRunning;
+        
+        if (_isSimulationRunning)
+        {
+            StatusText.Text = "Simulation running. Right-click to spawn cars. Stop simulation to edit grid.";
+        }
+        else if (_isNetworkBuilt)
+        {
+            StatusText.Text = "Network built. Click 'Start Simulation' to begin. Left-click: draw roads.";
+        }
+        else
+        {
+            StatusText.Text = "Draw roads with left-click, then build network to start simulation.";
+        }
     }
     
     private void StartPhysicsThread()
@@ -110,6 +134,9 @@ public partial class MainWindow : Window
                             _accumulatedTime -= FixedTimeStep;
                         }
                     }
+                    
+                    // Delay to prevent CPU locking
+                    await Task.Delay(1, token);
                 }
                 catch (OperationCanceledException)
                 {
@@ -144,10 +171,14 @@ public partial class MainWindow : Window
     private void RenderLoop(object? sender, EventArgs e)
     {
         var pixelsPerMeter = _gridManager.GetPixelsPerMeter();
-        var cars = _trafficManager.GetCars();
-        _carRenderer.UpdateAllCarVisuals(cars, pixelsPerMeter);
         
-        CarCountText.Text = $"Cars: {_trafficManager.GetCarCount()}";
+        var renderData = _trafficManager.GetRenderData();
+        _carRenderer.UpdateAllCarVisuals(renderData, pixelsPerMeter);
+        
+        if (_isNetworkBuilt)
+        {
+            NetworkInfoText.Text = _trafficManager.GetNetworkInfo();
+        }
     }
 
     private void CreateInitialGrid()
@@ -157,8 +188,6 @@ public partial class MainWindow : Window
         var cellSize = double.Parse(TxtCellSize.Text);
 
         _gridManager.CreateGrid(width, height, cellSize);
-        StatusText.Text =
-            $"Grid created: {width} x {height} cells (each cell = 4m x 4m). Left-click: draw roads, Right-click: spawn cars.";
     }
 
     private void BtnCreateGrid_Click(object sender, RoutedEventArgs e)
@@ -177,10 +206,14 @@ public partial class MainWindow : Window
             }
 
             _gridManager.CreateGrid(width, height, cellSize);
+            _trafficManager.ClearNetwork();
             _trafficManager.ClearTraffic();
             _carRenderer.ClearAllVisuals();
-            StatusText.Text =
-                $"Grid created: {width} x {height} cells (each cell = 4m x 4m). Total area: {width * 4}m x {height * 4}m";
+            
+            _isNetworkBuilt = false;
+            NetworkInfoText.Text = "Network not built";
+            
+            UpdateUiState();
         }
         catch (Exception ex)
         {
@@ -189,32 +222,115 @@ public partial class MainWindow : Window
         }
     }
 
+    private void BtnBuildNetwork_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_gridManager.HasGrid())
+        {
+            MessageBox.Show("Please create a grid first.", "No Grid",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        
+        try
+        {
+            var width = int.Parse(TxtGridWidth.Text);
+            var height = int.Parse(TxtGridHeight.Text);
+            
+            var success = BuildNetworkFromGrid(width, height);
+            
+            if (success)
+            {
+                _isNetworkBuilt = true;
+                MessageBox.Show("Lane network built successfully!", "Success",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            else
+            {
+                MessageBox.Show("Warning: Network built but may have disconnected nodes.", "Warning",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                _isNetworkBuilt = true;
+            }
+            
+            UpdateUiState();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error building network: {ex.Message}", "Error",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+    
+    private bool BuildNetworkFromGrid(int width, int height)
+    {
+        var grid = new Cell[width, height];
+        
+        for (var x = 0; x < width; x++)
+        {
+            for (var y = 0; y < height; y++)
+            {
+                var cell = _gridManager.GetCellFromGridCoords(x, y);
+                if (cell != null)
+                {
+                    grid[x, y] = cell;
+                }
+            }
+        }
+        
+        return _trafficManager.BuildNetwork(grid, width, height, _gridManager.CellSizeMeters);
+    }
+    
+    private void BtnStartSim_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_isNetworkBuilt)
+        {
+            MessageBox.Show("Please build the network first.", "Network Not Built",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        
+        _isSimulationRunning = true;
+        StartPhysicsThread();
+        UpdateUiState();
+    }
+    
+    private void BtnStopSim_Click(object sender, RoutedEventArgs e)
+    {
+        _isSimulationRunning = false;
+        StopPhysicsThread();
+        UpdateUiState();
+    }
+    
     private void BtnClear_Click(object sender, RoutedEventArgs e)
     {
         if (!_gridManager.HasGrid()) return;
 
         _gridManager.ClearAllCells();
+        _trafficManager.ClearNetwork();
         _trafficManager.ClearTraffic();
         _carRenderer.ClearAllVisuals();
-        StatusText.Text = "Grid and traffic cleared.";
+        
+        _isNetworkBuilt = false;
+        NetworkInfoText.Text = "Network not built";
+        
+        UpdateUiState();
     }
 
     private void GridCanvas_RightClick(object sender, MouseButtonEventArgs e)
     {
-        if (!_gridManager.HasGrid()) return;
+        if (!_isSimulationRunning || !_isNetworkBuilt) return;
 
         var pos = e.GetPosition(GridCanvas);
         var success = _trafficManager.SpawnCarAt(pos.X, pos.Y);
 
         if (!success)
         {
-            StatusText.Text = "Cannot spawn car here - must be on a road with a valid direction.";
+            StatusText.Text = "Cannot spawn car here. Click on a road with traffic flow.";
         }
     }
 
     private void GridCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (!_gridManager.HasGrid()) return;
+        if (!_gridManager.HasGrid() || _isSimulationRunning) return;
 
         _isDrawing = true;
         _lastDrawnCell = null;
@@ -233,12 +349,12 @@ public partial class MainWindow : Window
             StatusText.Text = GridManager.GetCellInfo(cell);
         }
 
-        if (!_isDrawing || e.LeftButton != MouseButtonState.Pressed) return;
+        if (!_isDrawing || e.LeftButton != MouseButtonState.Pressed || _isSimulationRunning) return;
         if (cell == _lastDrawnCell) return;
         DrawRoadAtPosition(position);
         _lastDrawnCell = cell;
     }
-
+    
     private void GridCanvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
         _isDrawing = false;
@@ -247,8 +363,9 @@ public partial class MainWindow : Window
 
     private void DrawRoadAtPosition(Point position)
     {
+        if (_isSimulationRunning) return;
+        
         var cell = _gridManager.GetCellFromPixel(position.X, position.Y);
-
         if (cell == null) return;
 
         var selectedDirection = GetSelectedDirection();
@@ -269,12 +386,10 @@ public partial class MainWindow : Window
 
             case CellType.Intersection:
                 break;
-
+            
             default:
                 throw new ArgumentOutOfRangeException();
         }
-
-        StatusText.Text = GridManager.GetCellInfo(cell);
     }
 
     private TrafficDirection GetSelectedDirection()
@@ -290,7 +405,10 @@ public partial class MainWindow : Window
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
         _renderTimer.Stop();
-        StopPhysicsThread();
+        if (_isSimulationRunning)
+        {
+            StopPhysicsThread();
+        }
         _gridManager.Dispose();
         base.OnClosing(e);
     }

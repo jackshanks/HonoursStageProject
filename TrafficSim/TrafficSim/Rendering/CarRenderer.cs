@@ -39,36 +39,37 @@ public class CarRenderer
         _canvas.Children.Add(host);
     }
     
-    public void UpdateAllCarVisuals(IReadOnlyList<Car> cars, double pixelsPerMeter)
+    public void UpdateAllCarVisuals(List<CarRenderData> renderData, double pixelsPerMeter)
     {
         using var dc = _carsVisual.RenderOpen();
         
-        foreach (var car in cars)
+        foreach (var carData in renderData)
         {
-            DrawCar(dc, car, pixelsPerMeter);
+            DrawCar(dc, carData, pixelsPerMeter);
         }
     }
     
-    private void DrawCar(DrawingContext dc, Car car, double pixelsPerMeter)
+    private void DrawCar(DrawingContext dc, CarRenderData carData, double pixelsPerMeter)
     {
         var widthPx = Car.WidthMeters * pixelsPerMeter;
         var lengthPx = Car.LengthMeters * pixelsPerMeter;
         
-        var brush = ColorBrushMap.GetValueOrDefault(car.Color, Brushes.Gray);
+        var brush = ColorBrushMap.GetValueOrDefault(carData.Color, Brushes.Gray);
         
-        var carX = car.X * pixelsPerMeter;
-        var carY = car.Y * pixelsPerMeter;
+        var carX = carData.X * pixelsPerMeter;
+        var carY = carData.Y * pixelsPerMeter;
         
         var rect = new Rect(-lengthPx / 2, -widthPx / 2, lengthPx, widthPx);
         
-        var isVertical = car.Direction is TrafficDirection.North or TrafficDirection.South;
-        if (isVertical)
-        {
-            rect = new Rect(-widthPx / 2, -lengthPx / 2, widthPx, lengthPx);
-        }
+        var angleRadians = Math.Atan2(carData.DY, carData.DX);
+        var angleDegrees = angleRadians * 180.0 / Math.PI;
         
         dc.PushTransform(new TranslateTransform(carX, carY));
+        dc.PushTransform(new RotateTransform(angleDegrees));
+        
         dc.DrawRectangle(brush, BlackPen, rect);
+        
+        dc.Pop();
         dc.Pop();
     }
     

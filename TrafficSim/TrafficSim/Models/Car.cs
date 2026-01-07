@@ -1,66 +1,100 @@
 ﻿using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using System.Windows;
 
 namespace TrafficSim.Models;
 
 public class Car
 {
     public Guid Id { get; } = Guid.NewGuid();
+    
     public double X { get; private set; }
     public double Y { get; private set; }
     public double Speed { get; private set; }
     public double MaxSpeed { get; }
-    public TrafficDirection Direction { get; set; }
+    private const double Deceleration = 25.0;
+    private const double Acceleration = 5.0;
+    
     public CarColor Color { get; }
-
     public const double WidthMeters = 2.0;
     public const double LengthMeters = 3.5;
     
-    private const double Deceleration = 10.0;
-    private const double Acceleration = 5.0;
-    public Car(double startX, double startY, double speed, TrafficDirection direction)
+    public Lane? CurrentLane { get; private set; }
+    public double LanePosition { get; private set; }
+    
+    private double _directionX;
+    private double _directionY;
+    
+    private const double LookaheadDistance = 30.0;
+    
+    private Lane? _cachedPathLane;
+    private List<Lane> _cachedLaneSequence;
+    
+    
+    public Car(Lane startLane, double speed, double startPosition = 0.0)
     {
-        X = startX;
-        Y = startY;
+        CurrentLane = startLane;
+        LanePosition = Math.Clamp(startPosition, 0.0, 1.0);
         Speed = speed;
         MaxSpeed = speed;
-        Direction = direction;
+        
+        var pos = startLane.GetPositionAt(LanePosition);
+        X = pos.X;
+        Y = pos.Y;
+        
+        (_directionX, _directionY) = startLane.GetDirectionAt(LanePosition);
         
         var random = new Random(Guid.NewGuid().GetHashCode());
         var colors = Enum.GetValues<CarColor>();
         Color = colors[random.Next(colors.Length)];
     }
 
-    public void Move(double deltaTime)
+    public bool Move(double deltaTime)
     {
-        var distance = Speed * deltaTime;
-
-        switch (Direction)
+        if (CurrentLane == null)
+            return false;
+        
+        var distanceMeters = Speed * deltaTime;
+        
+        // Convert distance into length through lane
+        var progression = distanceMeters / CurrentLane.Length;
+        LanePosition += progression;
+        
+        if (LanePosition >= 1.0)
         {
-            case TrafficDirection.North: 
-                Y -= distance; 
-                break;
-            case TrafficDirection.South: 
-                Y += distance; 
-                break;
-            case TrafficDirection.East:  
-                X += distance; 
-                break;
-            case TrafficDirection.West:  
-                X -= distance; 
-                break;
-            case TrafficDirection.None:
-                break;
-            default:
-                throw new ArgumentOutOfRangeException();
+            // If fully out of lane continue to next lane
+            var nextLane = CurrentLane.EndNode.GetNextLane(CurrentLane);
+            
+            if (nextLane == null)
+            {
+                return false;
+            }
+            
+            var overflow = LanePosition - 1.0;
+            CurrentLane = nextLane;
+            LanePosition = 0.0;
+            
+            if (overflow > 0)
+            {
+                var overflowMeters = overflow * CurrentLane.Length;
+                var newTDelta = overflowMeters / nextLane.Length;
+                LanePosition = Math.Min(newTDelta, 1.0);
+            }
         }
+        
+        var pos = CurrentLane.GetPositionAt(LanePosition);
+        X = pos.X;
+        Y = pos.Y;
+        
+        (_directionX, _directionY) = CurrentLane.GetDirectionAt(LanePosition);
+        
+        return true;
     }
     
-    public void SetPosition(double x, double y)
+    public (double dx, double dy) GetDirection()
     {
-        X = x;
-        Y = y;
+        return (_directionX, _directionY);
     }
     
     public void Accelerate(double deltaTime)
@@ -85,32 +119,73 @@ public class Car
         }
     }
     
-    public double GetDistanceTo(Car other)
+    public List<(Lane lane, double distanceToStart, double distanceToEnd)> GetCachedPathAhead()
     {
-        return Direction switch
+        // Rebuild only if we changed lanes or dont have a cache
+        if (_cachedPathLane != CurrentLane)
         {
-            TrafficDirection.North => Y - other.Y,
-            TrafficDirection.South => other.Y - Y,
-            TrafficDirection.East => other.X - X,
-            TrafficDirection.West => X - other.X,
-            _ => double.MaxValue
-        };
+            _cachedLaneSequence = BuildLaneSequence(LookaheadDistance);
+            _cachedPathLane = CurrentLane;
+        }
+        
+        var result = new List<(Lane, double, double)>();
+        var currentDist = 0.0;
+        
+        if (CurrentLane != null)
+        {
+            var remainingOnCurrent = (1.0 - LanePosition) * CurrentLane.Length;
+            result.Add((CurrentLane, 0, remainingOnCurrent));
+            currentDist += remainingOnCurrent;
+        }
+        
+        foreach(var lane in _cachedLaneSequence)
+        {
+            result.Add((lane, currentDist, currentDist + lane.Length));
+            currentDist += lane.Length;
+        }
+
+        return result;
     }
     
-    public bool IsCarAhead(Car other, double laneWidth = 4.0)
+    private List<Lane> BuildLaneSequence(double maxDist)
     {
-        var perpDistance = Direction switch
+        var lanes = new List<Lane>();
+        if (CurrentLane == null) return lanes;
+        var accumulated = (1.0 - LanePosition) * CurrentLane.Length; // Approx
+        var curr = CurrentLane;
+    
+        while(accumulated < maxDist)
         {
-            TrafficDirection.North or TrafficDirection.South => Math.Abs(X - other.X),
-            TrafficDirection.East or TrafficDirection.West => Math.Abs(Y - other.Y),
-            _ => double.MaxValue
-        };
+            var next = curr.EndNode.GetNextLane(curr);
+            if(next == null) break;
+            lanes.Add(next);
+            accumulated += next.Length;
+            curr = next;
+        }
+
+        return lanes;
+    }
+    
+    public double GetDistanceTo(Car other)
+    {
+        if (CurrentLane == null || other.CurrentLane == null)
+            return double.MaxValue;
         
-        if (perpDistance > laneWidth) 
-            return false;
+        var pathAhead = GetCachedPathAhead();
         
-        var forwardDistance = GetDistanceTo(other);
-        return forwardDistance > 0;
+        foreach (var (lane, startDistance, endDistance) in pathAhead)
+        {
+            if (lane.Id != other.CurrentLane.Id) continue;
+            var distanceAlongLane = other.LanePosition * lane.Length;
+            var totalDistance = startDistance + distanceAlongLane;
+            
+            if (totalDistance > 0)
+            {
+                return totalDistance;
+            }
+        }
+
+        return double.MaxValue;
     }
 }
 
@@ -125,3 +200,5 @@ public enum CarColor
     Crimson,
     DarkOrange
 }
+
+public record struct CarRenderData(double X, double Y, double DX, double DY, CarColor Color);
