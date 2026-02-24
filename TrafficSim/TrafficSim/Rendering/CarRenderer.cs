@@ -7,7 +7,6 @@ namespace TrafficSim.Rendering;
 
 public class CarRenderer
 {
-    private readonly Canvas _canvas;
     private readonly DrawingVisual _carsVisual;
     
     private static readonly Dictionary<CarColor, Brush> ColorBrushMap = new()
@@ -31,12 +30,11 @@ public class CarRenderer
     
     public CarRenderer(Canvas canvas)
     {
-        _canvas = canvas;
         _carsVisual = new DrawingVisual();
 
         var host = new DrawingVisualHost(_carsVisual);
         Panel.SetZIndex(host, 100);
-        _canvas.Children.Add(host);
+        canvas.Children.Add(host);
     }
     
     public void UpdateAllCarVisuals(List<CarRenderData> renderData, double pixelsPerMeter)
@@ -49,7 +47,7 @@ public class CarRenderer
         }
     }
     
-    private void DrawCar(DrawingContext dc, CarRenderData carData, double pixelsPerMeter)
+    private static void DrawCar(DrawingContext dc, CarRenderData carData, double pixelsPerMeter)
     {
         var widthPx = Car.WidthMeters * pixelsPerMeter;
         var lengthPx = Car.LengthMeters * pixelsPerMeter;

@@ -1,7 +1,6 @@
 ﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using System.Windows.Shapes;
 using TrafficSim.Models;
 
 namespace TrafficSim.Rendering;
@@ -25,7 +24,7 @@ public class GridRenderer
         _canvas = canvas;
         _gridVisual = new DrawingVisual();
         
-        // DrawingVisual solution to remove the grid being thousands of objects
+        // DrawingVisual the solution to remove the grid being thousands of objects
         var host = new DrawingVisualHost(_gridVisual);
         Panel.SetZIndex(host, 0);
         _canvas.Children.Add(host);
@@ -80,9 +79,8 @@ public class GridRenderer
         _arrowPointsWest[1] = new Point(center - arrowSize / 2, center);
         _arrowPointsWest[2] = new Point(center + arrowSize / 2, center + arrowSize / 2);
     }
-
     
-    public void UpdateCellVisual(Cell cell, double cellSizePixels)
+    public void UpdateCellVisual(Cell cell)
     {
         if (_grid == null) return;
         
@@ -90,7 +88,7 @@ public class GridRenderer
         RenderGrid();
     }
     
-    public void UpdateAllDirtyCells(Cell[,] grid, int width, int height, double cellSizePixels)
+    public void UpdateAllDirtyCells()
     {
         RenderGrid();
     }
@@ -165,12 +163,6 @@ public class GridRenderer
         dc.DrawGeometry(fill, stroke, streamGeometry);
     }
 
-
-    public void ClearVisuals()
-    {
-        using var dc = _gridVisual.RenderOpen();
-    }
-    
     private class DrawingVisualHost : FrameworkElement
     {
         private readonly VisualCollection _children;

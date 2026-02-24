@@ -9,9 +9,8 @@ public class LaneNetwork
     private readonly Dictionary<(int, int), List<Lane>> _cellToLanes = new();
     
     public IReadOnlyCollection<TrafficNode> Nodes => _nodes.Values;
-    public IReadOnlyCollection<Lane> Lanes => _lanes.Values;
 
-    public double CellSizeMeters { get; set; } = 4.0;
+    public double CellSizeMeters { get; init; } = 4.0;
     
     public void AddNode(TrafficNode node)
     {
@@ -29,31 +28,7 @@ public class LaneNetwork
     {
         return _cellToNode.GetValueOrDefault((gridX, gridY));
     }
-    
-    public TrafficNode? GetNearestNode(double worldX, double worldY, double maxDistance = double.MaxValue)
-    {
-        TrafficNode? nearest = null;
-        var minDist = maxDistance;
-        
-        foreach (var node in _nodes.Values)
-        {
-            var dx = node.X - worldX;
-            var dy = node.Y - worldY;
-            var dist = Math.Sqrt(dx * dx + dy * dy);
 
-            if (!(dist < minDist)) continue;
-            minDist = dist;
-            nearest = node;
-        }
-        
-        return nearest;
-    }
-    
-    public List<Lane> GetLanesInCell(int gridX, int gridY)
-    {
-        return _cellToLanes.TryGetValue((gridX, gridY), out var lanes) ? lanes : [];
-    }
-    
     private void AddLaneToSpatialIndex(Lane lane)
     {
         var cellsToAdd = new HashSet<(int, int)>

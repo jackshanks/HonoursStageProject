@@ -14,7 +14,7 @@ public class TrafficNode(double x, double y, int gridX, int gridY)
     public List<Lane> IncomingLanes { get; } = [];
 
     // TODO: pathfinding
-    public Lane? GetNextLane(Lane? currentLane = null)
+    public Lane? GetNextLane()
     {
         return OutgoingLanes.Count == 0 ? null : OutgoingLanes[0];
     }

@@ -89,7 +89,7 @@ public static class NetworkManager
         if (fromDirection == toDirection)
             return true;
         
-        // The car can not make u turns only 90 degree turns, prevents strange loop behaviour
+        // The car cannot make u turns only 90 degree turns, prevents strange loop behaviour
         return fromDirection switch
         {
             TrafficDirection.North => toDirection is TrafficDirection.East or TrafficDirection.West,

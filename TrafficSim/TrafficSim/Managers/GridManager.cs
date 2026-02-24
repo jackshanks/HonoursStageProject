@@ -8,43 +8,17 @@ namespace TrafficSim.Managers;
 /// Creates and manages the grid
 /// </summary>
 /// <param name="canvas">UI Element</param>
-/// <param name="cellSizeMeters">Assigns each cell to a meter length for real world comparisons</param>
+/// <param name="cellSizeMeters">Assigns each cell to a meter length for real-world comparisons</param>
 public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
 {
-    private readonly GridRenderer _renderer = new GridRenderer(canvas);
+    private readonly GridRenderer _renderer = new(canvas);
     private readonly ReaderWriterLockSlim _gridLock = new();
     private int GridWidth { get; set; }
     private int GridHeight { get; set; }
-    public double CellSizeMeters { get; set; } = cellSizeMeters;
+    public double CellSizeMeters { get; } = cellSizeMeters;
     private double CellSizePixels { get; set; }
     
     private Cell[,]? _grid;
-
-    public double GetTotalWidthMeters()
-    {
-        _gridLock.EnterReadLock();
-        try
-        {
-            return GridWidth * CellSizeMeters;
-        }
-        finally
-        {
-            _gridLock.ExitReadLock();
-        }
-    }
-    
-    public double GetTotalHeightMeters()
-    {
-        _gridLock.EnterReadLock();
-        try
-        {
-            return GridHeight * CellSizeMeters;
-        }
-        finally
-        {
-            _gridLock.ExitReadLock();
-        }
-    }
     
     public void CreateGrid(int width, int height, double cellSizePixels)
     {
@@ -97,21 +71,6 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
         }
     }
     
-    public Cell? GetCellFromWorldCoords(double worldX, double worldY)
-    {
-        _gridLock.EnterReadLock();
-        try
-        {
-            var x = (int)Math.Floor(worldX / CellSizeMeters);
-            var y = (int)Math.Floor(worldY / CellSizeMeters);
-            return GetCell(x, y);
-        }
-        finally
-        {
-            _gridLock.ExitReadLock();
-        }
-    }
-    
     public Cell? GetCellFromGridCoords(int x, int y)
     {
         _gridLock.EnterReadLock();
@@ -138,23 +97,6 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
             _gridLock.ExitReadLock();
         }
     }
-
-    public void SetCellType(int x, int y, CellType type)
-    {
-        _gridLock.EnterWriteLock();
-        try
-        {
-            var cell = GetCell(x, y);
-            if (cell == null) return;
-            
-            cell.SetType(type);
-            _renderer.UpdateCellVisual(cell, CellSizePixels);
-        }
-        finally
-        {
-            _gridLock.ExitWriteLock();
-        }
-    }
     
     public void SetCellDirection(int x, int y, TrafficDirection direction)
     {
@@ -165,7 +107,7 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
             if (cell == null) return;
             
             cell.SetDirection(direction);
-            _renderer.UpdateCellVisual(cell, CellSizePixels);
+            _renderer.UpdateCellVisual(cell);
         }
         finally
         {
@@ -182,7 +124,7 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
             if (cell == null) return;
             
             cell.SetTypeAndDirection(type, direction);
-            _renderer.UpdateCellVisual(cell, CellSizePixels);
+            _renderer.UpdateCellVisual(cell);
         }
         finally
         {
@@ -206,7 +148,7 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
                 }
             }
             // Maybe doesn't work? "Dirty" methods need reviewing
-            _renderer.UpdateAllDirtyCells(_grid, GridWidth, GridHeight, CellSizePixels);
+            _renderer.UpdateAllDirtyCells();
         }
         finally
         {
@@ -227,22 +169,6 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
         }
     }
     
-    public bool IsValidRoad(double worldX, double worldY)
-    {
-        _gridLock.EnterReadLock();
-        try
-        {
-            var x = (int)Math.Floor(worldX / CellSizeMeters);
-            var y = (int)Math.Floor(worldY / CellSizeMeters);
-            var cell = GetCell(x, y);
-            return cell?.Type == CellType.Road && cell.Direction != TrafficDirection.None;
-        }
-        finally
-        {
-            _gridLock.ExitReadLock();
-        }
-    }
-    
     public static string GetCellInfo(Cell? cell)
     {
         if (cell == null) return "Error: Cell not found";
@@ -253,6 +179,6 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
     
     public void Dispose()
     {
-        _gridLock?.Dispose();
+        _gridLock.Dispose();
     }
 }

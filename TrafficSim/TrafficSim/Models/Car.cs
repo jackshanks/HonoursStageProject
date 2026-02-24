@@ -1,9 +1,4 @@
-﻿using System.Windows.Controls;
-using System.Windows.Media;
-using System.Windows.Shapes;
-using System.Windows;
-
-namespace TrafficSim.Models;
+﻿namespace TrafficSim.Models;
 
 public class Car
 {
@@ -64,7 +59,7 @@ public class Car
         if (LanePosition >= 1.0)
         {
             // If fully out of lane continue to next lane
-            var nextLane = CurrentLane.EndNode.GetNextLane(CurrentLane);
+            var nextLane = CurrentLane.EndNode.GetNextLane();
             
             if (nextLane == null)
             {
@@ -121,7 +116,7 @@ public class Car
     
     public List<(Lane lane, double distanceToStart, double distanceToEnd)> GetCachedPathAhead()
     {
-        // Rebuild only if we changed lanes or dont have a cache
+        // Rebuild only if we changed lanes or don't have a cache
         if (_cachedPathLane != CurrentLane)
         {
             _cachedLaneSequence = BuildLaneSequence(LookaheadDistance);
@@ -156,7 +151,7 @@ public class Car
     
         while(accumulated < maxDist)
         {
-            var next = curr.EndNode.GetNextLane(curr);
+            var next = curr.EndNode.GetNextLane();
             if(next == null) break;
             lanes.Add(next);
             accumulated += next.Length;

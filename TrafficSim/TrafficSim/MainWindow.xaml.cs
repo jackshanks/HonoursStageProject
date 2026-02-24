@@ -9,9 +9,9 @@ using TrafficSim.Rendering;
 namespace TrafficSim;
 
 /// <summary>
-/// Interaction logic for physics and UI. Uses threading to try to increase preformance with large numbers of cars
+/// Interaction logic for physics and UI. Uses threading to try to increase performance with large numbers of cars
 /// </summary>
-public partial class MainWindow : Window
+public partial class MainWindow
 {
     private readonly GridManager _gridManager;
     private readonly TrafficManager _trafficManager;
@@ -26,7 +26,6 @@ public partial class MainWindow : Window
     private const double FixedTimeStep = 1.0 / 60.0;
     private const double MaxAccumulatedTime = 0.1; // Cap to amount of time passage to prevent spiral
     private double _accumulatedTime;
-    private long _lastTicks;
 
     private bool _isDrawing;
     private Cell? _lastDrawnCell;
@@ -47,14 +46,13 @@ public partial class MainWindow : Window
         CreateInitialGrid();
 
         var stopwatch = Stopwatch.StartNew();
-        _lastTicks = stopwatch.ElapsedTicks;
         
         _collisionsEnabled = ChkCollisions.IsChecked == true;
         
         ChkCollisions.Checked += (_, _) => _collisionsEnabled = true;
         ChkCollisions.Unchecked += (_, _) => _collisionsEnabled = false;
 
-        // render timer at 60fps on main thread
+        // render timer at 60fps on the main thread
         _renderTimer = new DispatcherTimer(DispatcherPriority.Render)
         {
             Interval = TimeSpan.FromMilliseconds(16)
@@ -401,9 +399,7 @@ public partial class MainWindow : Window
         if (RbNorth.IsChecked == true) return TrafficDirection.North;
         if (RbEast.IsChecked == true) return TrafficDirection.East;
         if (RbSouth.IsChecked == true) return TrafficDirection.South;
-        if (RbWest.IsChecked == true) return TrafficDirection.West;
-
-        return TrafficDirection.East;
+        return RbWest.IsChecked == true ? TrafficDirection.West : TrafficDirection.East;
     }
     
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)

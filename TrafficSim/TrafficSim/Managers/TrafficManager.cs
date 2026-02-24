@@ -45,23 +45,6 @@ public class TrafficManager(GridManager gridManager)
             return $"Nodes: {stats.nodeCount} | Lanes: {stats.laneCount} (Straight: {stats.straightLanes}, Curved: {stats.curvedLanes})";
         }
     }
-
-    public bool IsNetworkBuilt()
-    {
-        lock (_carsLock)
-        {
-            return _isNetworkBuilt;
-        }
-    }
-
-    
-    public int GetCarCount()
-    {
-        lock (_carsLock)
-        {
-            return _cars.Count;
-        }
-    }
     
     public void UpdatePhysics(double deltaTime, bool collisionsEnabled)
     {

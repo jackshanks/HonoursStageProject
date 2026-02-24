@@ -13,7 +13,7 @@ public class Lane
     public TrafficNode EndNode { get; }
     public LaneType Type { get; }
     public double Length { get; private set; }
-    public Point? ControlPoint { get; }
+    private Point? ControlPoint { get; }
     
     public TrafficDirection StartDirection { get; }
     public TrafficDirection EndDirection { get; }
