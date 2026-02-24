@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
@@ -29,6 +29,8 @@ public partial class MainWindow
 
     private bool _isDrawing;
     private Cell? _lastDrawnCell;
+    private bool _isErasing;
+    private Cell? _lastErasedCell;
     
     private double _simulationSpeed = 1.0;
     private volatile bool _collisionsEnabled;
@@ -319,15 +321,22 @@ public partial class MainWindow
 
     private void GridCanvas_RightClick(object sender, MouseButtonEventArgs e)
     {
-        if (!_isSimulationRunning || !_isNetworkBuilt) return;
-
-        var pos = e.GetPosition(GridCanvas);
-        var success = _trafficManager.SpawnCarAt(pos.X, pos.Y);
-
-        if (!success)
+        if (_isSimulationRunning && _isNetworkBuilt)
         {
-            StatusText.Text = "Cannot spawn car here. Click on a road with traffic flow.";
+            var pos = e.GetPosition(GridCanvas);
+            var success = _trafficManager.SpawnCarAt(pos.X, pos.Y);
+            if (!success)
+            {
+                StatusText.Text = "Cannot spawn car here. Click on a road with traffic flow.";
+            }
+            return;
         }
+
+        if (!_gridManager.HasGrid() || _isSimulationRunning) return;
+
+        _isErasing = true;
+        _lastErasedCell = null;
+        EraseAtPosition(e.GetPosition(GridCanvas));
     }
 
     private void GridCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -346,52 +355,57 @@ public partial class MainWindow
         var position = e.GetPosition(GridCanvas);
         var cell = _gridManager.GetCellFromPixel(position.X, position.Y);
 
-        if (cell != null)
+        if (cell != null && !_isSimulationRunning)
         {
             StatusText.Text = GridManager.GetCellInfo(cell);
         }
 
-        if (!_isDrawing || e.LeftButton != MouseButtonState.Pressed || _isSimulationRunning) return;
-        if (cell == _lastDrawnCell) return;
-        DrawRoadAtPosition(position);
-        _lastDrawnCell = cell;
+        if (_isDrawing && e.LeftButton == MouseButtonState.Pressed && !_isSimulationRunning && cell != _lastDrawnCell)
+        {
+            DrawRoadAtPosition(position);
+            _lastDrawnCell = cell;
+        }
+
+        if (!_isErasing || e.RightButton != MouseButtonState.Pressed || _isSimulationRunning || cell == _lastErasedCell) return;
+        EraseAtPosition(position);
+        _lastErasedCell = cell;
     }
-    
+
     private void GridCanvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
         _isDrawing = false;
         _lastDrawnCell = null;
     }
 
+    private void GridCanvas_MouseRightButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        _isErasing = false;
+        _lastErasedCell = null;
+    }
+
     private void DrawRoadAtPosition(Point position)
     {
         if (_isSimulationRunning) return;
-        
+
         var cell = _gridManager.GetCellFromPixel(position.X, position.Y);
         if (cell == null) return;
 
         var selectedDirection = GetSelectedDirection();
 
-        switch (cell.Type)
-        {
-            case CellType.Empty:
-                _gridManager.SetCellTypeAndDirection(cell.X, cell.Y, CellType.Road, selectedDirection);
-                break;
+        if (cell.Type == CellType.Empty)
+            _gridManager.SetCellTypeAndDirection(cell.X, cell.Y, CellType.Road, selectedDirection);
+        else if (cell.Type == CellType.Road)
+            _gridManager.SetCellDirection(cell.X, cell.Y, selectedDirection);
+    }
 
-            case CellType.Road when cell.Direction == selectedDirection:
-                _gridManager.SetCellTypeAndDirection(cell.X, cell.Y, CellType.Empty, TrafficDirection.None);
-                break;
+    private void EraseAtPosition(Point position)
+    {
+        if (_isSimulationRunning) return;
 
-            case CellType.Road:
-                _gridManager.SetCellDirection(cell.X, cell.Y, selectedDirection);
-                break;
+        var cell = _gridManager.GetCellFromPixel(position.X, position.Y);
 
-            case CellType.Intersection:
-                break;
-            
-            default:
-                throw new ArgumentOutOfRangeException();
-        }
+        if (cell?.Type is CellType.Road or CellType.Intersection)
+            _gridManager.SetCellTypeAndDirection(cell.X, cell.Y, CellType.Empty, TrafficDirection.None);
     }
 
     private TrafficDirection GetSelectedDirection()
