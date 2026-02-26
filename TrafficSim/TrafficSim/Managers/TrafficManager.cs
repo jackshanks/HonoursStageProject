@@ -17,6 +17,7 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
 
     private readonly Dictionary<Guid, List<Car>> _carsPerLane = new();
     private readonly List<Guid> _emptyLaneKeys = [];
+    private readonly Dictionary<Guid, double> _spawnTimers = new();
 
     private readonly Random _random = new();
     
@@ -26,9 +27,13 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
         {
             _cars.Clear();
             _carsPerLane.Clear();
-            
+            _spawnTimers.Clear();
+
             _laneNetwork = NetworkManager.BuildNetwork(grid, width, height, cellSizeMeters);
-            
+
+            foreach (var node in _laneNetwork.SpawnNodes)
+                _spawnTimers[node.Id] = 0.0;
+
             return NetworkManager.ValidateNetwork(_laneNetwork);
         }
     }
@@ -68,11 +73,23 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
                 }
                 
                 var stillOnNetwork = car.Move(deltaTime);
-                
+
                 if (!stillOnNetwork)
                 {
                     _cars.RemoveAt(i);
                 }
+            }
+
+            foreach (var node in _laneNetwork.SpawnNodes)
+            {
+                if (!_spawnTimers.TryGetValue(node.Id, out var elapsed)) continue;
+                elapsed += deltaTime;
+                if (elapsed >= _config.SpawnInterval)
+                {
+                    TrySpawnAtNode(node);
+                    elapsed = 0.0;
+                }
+                _spawnTimers[node.Id] = elapsed;
             }
         }
     }
@@ -204,38 +221,48 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
         {
             if (_laneNetwork == null)
                 return false;
-            
+
             var cell = gridManager.GetCellFromPixel(pixelX, pixelY);
             if (cell == null)
                 return false;
-            
+
             var node = _laneNetwork.GetNodeAt(cell.X, cell.Y);
-            if (node == null || node.OutgoingLanes.Count == 0)
+            if (node == null)
                 return false;
-            
-            var lane = node.OutgoingLanes[_random.Next(node.OutgoingLanes.Count)];
-            
-            // Check if there is a car to close
-            if (_carsPerLane.TryGetValue(lane.Id, out var carsOnLane))
+
+            return TrySpawnAtNode(node);
+        }
+    }
+
+    /// <summary>
+    /// Attempts to spawn a car at the given node.
+    /// </summary>
+    private bool TrySpawnAtNode(TrafficNode node)
+    {
+        if (node.OutgoingLanes.Count == 0)
+            return false;
+
+        var lane = node.OutgoingLanes[_random.Next(node.OutgoingLanes.Count)];
+
+        // Check if there is a car too close
+        if (_carsPerLane.TryGetValue(lane.Id, out var carsOnLane))
+        {
+            foreach (var existingCar in carsOnLane)
             {
-                foreach (var existingCar in carsOnLane)
-                {
-                    var distance = existingCar.LanePosition * lane.Length;
-                    if (distance < _config.MinFollowingDistance * 2)
-                    {
-                        return false;
-                    }
+                var distance = existingCar.LanePosition * lane.Length;
+                if (distance < _config.MinFollowingDistance * 2)
+                { 
+                    return false; 
                 }
             }
-            
-            var speed = 10.0 + _random.NextDouble() * 10.0;
-            var colors = Enum.GetValues<CarColor>();
-            var color = colors[_random.Next(colors.Length)];
-
-            var car = new Car(lane, speed, color, _config, startPosition: 0.0);
-            _cars.Add(car);
         }
-        
+
+        var speed = 10.0 + _random.NextDouble() * 10.0;
+        var colors = Enum.GetValues<CarColor>();
+        var color = colors[_random.Next(colors.Length)];
+
+        var car = new Car(lane, speed, color, _config, startPosition: 0.0);
+        _cars.Add(car);
         return true;
     }
     

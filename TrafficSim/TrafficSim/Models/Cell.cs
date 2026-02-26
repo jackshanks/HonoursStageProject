@@ -24,19 +24,3 @@ public class Cell(int x, int y, double cellSizeMeters = 4.0)
         Direction = direction;
     }
 }
-
-public enum CellType
-{
-    Empty,
-    Road,
-    Intersection
-}
-
-public enum TrafficDirection
-{
-    None,
-    North,
-    East,
-    South,
-    West
-}

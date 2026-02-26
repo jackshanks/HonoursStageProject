@@ -1,0 +1,24 @@
+namespace TrafficSim.Models;
+
+public enum Enums
+{
+    Regular,
+    Spawn,
+    Exit
+}
+
+public enum CellType
+{
+    Empty,
+    Road,
+    Intersection
+}
+
+public enum TrafficDirection
+{
+    None,
+    North,
+    East,
+    South,
+    West
+}

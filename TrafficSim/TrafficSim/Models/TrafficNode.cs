@@ -1,4 +1,4 @@
-﻿namespace TrafficSim.Models;
+namespace TrafficSim.Models;
 
 public class TrafficNode(double x, double y, int gridX, int gridY)
 {
@@ -10,8 +10,10 @@ public class TrafficNode(double x, double y, int gridX, int gridY)
     public int GridY { get; } = gridY;
 
     public List<Lane> OutgoingLanes { get; } = [];
-    
+
     public List<Lane> IncomingLanes { get; } = [];
+
+    public Enums Enums { get; set; } = Enums.Regular;
 
     // TODO: pathfinding
     public Lane? GetNextLane()

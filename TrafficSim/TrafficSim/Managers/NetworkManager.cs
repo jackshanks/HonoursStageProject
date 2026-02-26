@@ -1,4 +1,4 @@
-﻿using TrafficSim.Models;
+using TrafficSim.Models;
 
 namespace TrafficSim.Managers;
 
@@ -69,6 +69,14 @@ public static class NetworkManager
             }
         }
         
+        foreach (var node in network.Nodes)
+        {
+            if (node.IncomingLanes.Count == 0)
+                node.Enums = Enums.Spawn;
+            else if (node.OutgoingLanes.Count == 0)
+                node.Enums = Enums.Exit;
+        }
+
         return network;
     }
     

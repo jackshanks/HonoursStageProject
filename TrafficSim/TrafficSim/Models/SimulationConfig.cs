@@ -14,6 +14,8 @@ public record SimulationConfig
     public double MinFollowingDistance { get; init; } = 2.0;
     /// <summary>Gap (metres) at which a car begins to slow for slower traffic ahead.</summary>
     public double ReactionDistance { get; init; } = 15.0;
+    /// <summary>Seconds between automatic car spawns at each spawn node.</summary>
+    public double SpawnInterval { get; init; } = 3.0;
 
     public static SimulationConfig Default { get; } = new();
 }

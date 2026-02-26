@@ -9,6 +9,10 @@ public class LaneNetwork
     
     public IReadOnlyCollection<TrafficNode> Nodes => _nodes.Values;
 
+    public IEnumerable<TrafficNode> SpawnNodes => _nodes.Values.Where(n => n.Enums == Enums.Spawn);
+
+    public IEnumerable<TrafficNode> ExitNodes => _nodes.Values.Where(n => n.Enums == Enums.Exit);
+
     public double CellSizeMeters { get; init; } = 4.0;
     
     public void AddNode(TrafficNode node)
