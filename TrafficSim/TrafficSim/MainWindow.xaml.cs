@@ -309,8 +309,8 @@ public partial class MainWindow
     private async void BtnStopSim_Click(object sender, RoutedEventArgs e)
     {
         _isSimulationRunning = false;
-        await StopPhysicsThreadAsync();
         UpdateUiState();
+        await StopPhysicsThreadAsync();
     }
     
     private void BtnClear_Click(object sender, RoutedEventArgs e)

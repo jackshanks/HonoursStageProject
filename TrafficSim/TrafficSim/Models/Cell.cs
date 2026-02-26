@@ -1,7 +1,3 @@
-using System.Windows;
-using System.Windows.Media;
-using System.Windows.Shapes;
-
 namespace TrafficSim.Models;
 
 public class Cell(int x, int y, double cellSizeMeters = 4.0)
