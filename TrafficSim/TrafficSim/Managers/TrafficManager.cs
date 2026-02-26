@@ -169,8 +169,9 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
             if (!_carsPerLane.TryGetValue(lane.Id, out var carsOnLane))
                 continue;
 
-            foreach (var otherCar in carsOnLane.Where(otherCar => otherCar.Id != car.Id))
+            foreach (var otherCar in carsOnLane)
             {
+                if (otherCar.Id == car.Id) continue;
                 if (lane.Id == car.CurrentLane.Id)
                 {
                     if (otherCar.LanePosition <= car.LanePosition)
