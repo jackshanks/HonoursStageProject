@@ -45,9 +45,7 @@ public partial class MainWindow
         _trafficManager = new TrafficManager(_gridManager);
         _carRenderer = new CarRenderer(GridCanvas);
 
-        CreateInitialGrid();
-
-        var stopwatch = Stopwatch.StartNew();
+        ParseAndCreateGrid();
         
         _collisionsEnabled = ChkCollisions.IsChecked == true;
         
@@ -185,31 +183,23 @@ public partial class MainWindow
         }
     }
 
-    private void CreateInitialGrid()
+    private void ParseAndCreateGrid()
     {
         var width = int.Parse(TxtGridWidth.Text);
         var height = int.Parse(TxtGridHeight.Text);
         var cellSize = double.Parse(TxtCellSize.Text);
 
+        if (width <= 0 || height <= 0 || cellSize <= 0)
+            throw new ArgumentException("Please enter valid positive numbers.");
+
         _gridManager.CreateGrid(width, height, cellSize);
     }
-
+    
     private void BtnCreateGrid_Click(object sender, RoutedEventArgs e)
     {
         try
         {
-            var width = int.Parse(TxtGridWidth.Text);
-            var height = int.Parse(TxtGridHeight.Text);
-            var cellSize = double.Parse(TxtCellSize.Text);
-
-            if (width <= 0 || height <= 0 || cellSize <= 0)
-            {
-                MessageBox.Show("Please enter valid positive numbers.", "Invalid Input",
-                    MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
-            _gridManager.CreateGrid(width, height, cellSize);
+            ParseAndCreateGrid();
             _trafficManager.ClearNetwork();
             _trafficManager.ClearTraffic();
             _carRenderer.ClearAllVisuals();
@@ -218,6 +208,11 @@ public partial class MainWindow
             NetworkInfoText.Text = "Network not built";
             
             UpdateUiState();
+        }
+        catch (ArgumentException ex)
+        {
+            MessageBox.Show(ex.Message, "Invalid Input",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         catch (Exception ex)
         {

@@ -237,8 +237,7 @@ public class TrafficManager(GridManager gridManager)
     {
         lock (_carsLock)
         {
-            _cars.Clear();
-            _carsPerLane.Clear();
+            ClearTraffic();
             _laneNetwork?.Clear();
             _laneNetwork = null;
             _isNetworkBuilt = false;

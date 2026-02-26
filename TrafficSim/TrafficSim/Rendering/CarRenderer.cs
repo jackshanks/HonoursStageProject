@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using TrafficSim.Models;
@@ -74,24 +74,5 @@ public class CarRenderer
     public void ClearAllVisuals()
     {
         using var dc = _carsVisual.RenderOpen();
-    }
-    
-    private class DrawingVisualHost : FrameworkElement
-    {
-        private readonly VisualCollection _children;
-        
-        public DrawingVisualHost(DrawingVisual visual)
-        {
-            _children = new VisualCollection(this) { visual };
-        }
-        
-        protected override int VisualChildrenCount => _children.Count;
-        
-        protected override Visual GetVisualChild(int index)
-        {
-            if (index < 0 || index >= _children.Count)
-                throw new ArgumentOutOfRangeException(nameof(index));
-            return _children[index];
-        }
     }
 }
