@@ -226,10 +226,7 @@ public partial class MainWindow
         
         try
         {
-            var width = int.Parse(TxtGridWidth.Text);
-            var height = int.Parse(TxtGridHeight.Text);
-            
-            var success = BuildNetworkFromGrid(width, height);
+            var success = BuildNetworkFromGrid(_gridManager.GridWidth, _gridManager.GridHeight);
             
             if (success)
             {

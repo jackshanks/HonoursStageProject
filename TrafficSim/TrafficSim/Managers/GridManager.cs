@@ -13,8 +13,8 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
 {
     private readonly GridRenderer _renderer = new(canvas);
     private readonly ReaderWriterLockSlim _gridLock = new();
-    private int GridWidth { get; set; }
-    private int GridHeight { get; set; }
+    public int GridWidth { get; private set; }
+    public int GridHeight { get; private set; }
     public double CellSizeMeters { get; } = cellSizeMeters;
     private double CellSizePixels { get; set; }
     
