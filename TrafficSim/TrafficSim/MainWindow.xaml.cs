@@ -38,6 +38,7 @@ public partial class MainWindow
     private bool _isNetworkBuilt;
     private bool _isSimulationRunning;
     private bool _isClosing;
+    private bool _closeReady;
 
     public MainWindow()
     {
@@ -405,21 +406,25 @@ public partial class MainWindow
     
     protected override async void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
-        if (_isClosing)
+        if (_closeReady)
         {
             _gridManager.Dispose();
             base.OnClosing(e);
             return;
         }
 
-        // Defer the close to await the physics task without blocking the UI thread.
+        // Cancel any re-entrant close events while async cleanup is in progress.
         e.Cancel = true;
+        if (_isClosing) return;
+
+        // Defer the close to await the physics task without blocking the UI thread.
         _isClosing = true;
 
         _renderTimer.Stop();
         if (_isSimulationRunning)
             await StopPhysicsThreadAsync();
 
-        Close();
+        _closeReady = true;
+        Dispatcher.BeginInvoke(new Action(Close));
     }
 }
