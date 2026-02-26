@@ -62,12 +62,13 @@ public class CarRenderer
         var angleRadians = Math.Atan2(carData.DY, carData.DX);
         var angleDegrees = angleRadians * 180.0 / Math.PI;
         
-        dc.PushTransform(new TranslateTransform(carX, carY));
-        dc.PushTransform(new RotateTransform(angleDegrees));
-        
+        var matrix = Matrix.Identity;
+        matrix.Rotate(angleDegrees);
+        matrix.Translate(carX, carY);
+        dc.PushTransform(new MatrixTransform(matrix));
+
         dc.DrawRectangle(brush, BlackPen, rect);
-        
-        dc.Pop();
+
         dc.Pop();
     }
     

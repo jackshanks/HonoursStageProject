@@ -115,17 +115,18 @@ public partial class MainWindow
         {
             var physicsStopwatch = Stopwatch.StartNew();
             var lastPhysicsTicks = physicsStopwatch.ElapsedTicks;
+            var ticksPerFrame = (long)(Stopwatch.Frequency * FixedTimeStep);
 
             while (!token.IsCancellationRequested)
             {
                 try
                 {
-                    var currentTicks = physicsStopwatch.ElapsedTicks;
-                    var elapsedTicks = currentTicks - lastPhysicsTicks;
-                    lastPhysicsTicks = currentTicks;
+                    var frameStart = physicsStopwatch.ElapsedTicks;
+                    var elapsedTicks = frameStart - lastPhysicsTicks;
+                    lastPhysicsTicks = frameStart;
 
                     var deltaTime = (double)elapsedTicks / Stopwatch.Frequency;
-                    
+
                     lock (_physicsLock)
                     {
                         var collisionsEnabled = _collisionsEnabled;
@@ -143,9 +144,23 @@ public partial class MainWindow
                             _accumulatedTime -= FixedTimeStep;
                         }
                     }
-                    
-                    // Delay to prevent CPU locking
-                    await Task.Delay(1, token);
+
+                    // Sleep for the remainder of the 16.67 ms frame budget so the thread
+                    // yields the CPU without over-sleeping (Task.Delay(1) sleeps ~15 ms on Windows).
+                    var elapsed = physicsStopwatch.ElapsedTicks - frameStart;
+                    var remaining = ticksPerFrame - elapsed;
+                    if (remaining > 0)
+                    {
+                        var remainingMs = (int)(remaining * 1000 / Stopwatch.Frequency);
+                        if (remainingMs > 1)
+                            await Task.Delay(remainingMs, token);
+                        else
+                            await Task.Yield();
+                    }
+                    else
+                    {
+                        await Task.Yield();
+                    }
                 }
                 catch (OperationCanceledException)
                 {

@@ -1,4 +1,3 @@
-using System.Linq;
 using TrafficSim.Models;
 
 namespace TrafficSim.Managers;
@@ -17,6 +16,7 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
     private LaneNetwork? _laneNetwork;
 
     private readonly Dictionary<Guid, List<Car>> _carsPerLane = new();
+    private readonly List<Guid> _emptyLaneKeys = [];
 
     private readonly Random _random = new();
     
@@ -100,10 +100,18 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
             carsOnLane.Add(car);
         }
 
-        var emptyKeys = _carsPerLane.Where(kvp => kvp.Value.Count == 0).Select(kvp => kvp.Key).ToList();
-        foreach (var key in emptyKeys)
+        foreach (var kvp in _carsPerLane)
+        {
+            if (kvp.Value.Count == 0)
+            {
+                _emptyLaneKeys.Add(kvp.Key);
+            }
+        }
+
+        foreach (var key in _emptyLaneKeys)
         {
             _carsPerLane.Remove(key);
+            _emptyLaneKeys.Clear();
         }
     }
     
@@ -112,11 +120,10 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
         if (car.CurrentLane == null)
             return;
         
-        var carAhead = FindCarAhead(car);
-        
+        var (carAhead, distance) = FindCarAhead(car);
+
         if (carAhead != null)
         {
-            var distance = car.GetDistanceTo(carAhead);
             distance -= Car.LengthMeters;
 
             switch (distance)
@@ -154,16 +161,16 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
     /// </summary>
     /// <param name="car"></param>
     /// <returns></returns>
-    private Car? FindCarAhead(Car car)
+    private (Car? car, double distance) FindCarAhead(Car car)
     {
         if (car.CurrentLane == null)
-            return null;
-        
+            return (null, double.MaxValue);
+
         var pathAhead = car.GetCachedPathAhead();
-        
+
         Car? closestCar = null;
         var minDistance = double.MaxValue;
-        
+
         foreach (var (lane, startDistance, endDistance) in pathAhead)
         {
             if (!_carsPerLane.TryGetValue(lane.Id, out var carsOnLane))
@@ -177,7 +184,7 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
                     if (otherCar.LanePosition <= car.LanePosition)
                         continue;
                 }
-                
+
                 var startOffset = lane.Id == car.CurrentLane.Id ? car.LanePosition : 0.0;
                 var distanceAlongLane = (otherCar.LanePosition - startOffset) * lane.Length;
                 var totalDistance = startDistance + distanceAlongLane;
@@ -187,8 +194,8 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
                 closestCar = otherCar;
             }
         }
-        
-        return closestCar;
+
+        return (closestCar, minDistance);
     }
 
     public bool SpawnCarAt(double pixelX, double pixelY)

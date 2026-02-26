@@ -82,13 +82,6 @@ public class GridRenderer
         _arrowPointsWest[1] = new Point(center - arrowSize / 2, center);
         _arrowPointsWest[2] = new Point(center + arrowSize / 2, center + arrowSize / 2);
     }
-    
-    public void UpdateCellVisual(Cell cell)
-    {
-        if (_grid == null) return;
-        RenderGrid();
-    }
-
 
     public void RenderGrid()
     {

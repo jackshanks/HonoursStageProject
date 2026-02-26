@@ -107,7 +107,7 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
             if (cell == null) return;
             
             cell.SetDirection(direction);
-            _renderer.UpdateCellVisual(cell);
+            _renderer.RenderGrid();
         }
         finally
         {
@@ -124,7 +124,7 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
             if (cell == null) return;
             
             cell.SetTypeAndDirection(type, direction);
-            _renderer.UpdateCellVisual(cell);
+            _renderer.RenderGrid();
         }
         finally
         {
