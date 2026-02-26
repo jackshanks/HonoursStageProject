@@ -8,32 +8,30 @@ public class Car
     public double Y { get; private set; }
     public double Speed { get; private set; }
     public double MaxSpeed { get; }
-    private const double Deceleration = 25.0;
-    private const double Acceleration = 5.0;
-    
+    private readonly SimulationConfig _config;
+
     public CarColor Color { get; }
     public const double WidthMeters = 2.0;
     public const double LengthMeters = 3.5;
-    
+
     public Lane? CurrentLane { get; private set; }
     public double LanePosition { get; private set; }
-    
+
     private double _directionX;
     private double _directionY;
-    
-    private const double LookaheadDistance = 30.0;
-    
+
     private Lane? _cachedPathLane;
     private List<Lane> _cachedLaneSequence = [];
-    
-    
-    public Car(Lane startLane, double speed, CarColor color, double startPosition = 0.0)
+
+
+    public Car(Lane startLane, double speed, CarColor color, SimulationConfig config, double startPosition = 0.0)
     {
         CurrentLane = startLane;
         LanePosition = Math.Clamp(startPosition, 0.0, 1.0);
         Speed = speed;
         MaxSpeed = speed;
         Color = color;
+        _config = config;
 
         var pos = startLane.GetPositionAt(LanePosition);
         X = pos.X;
@@ -91,23 +89,23 @@ public class Car
     
     public void Accelerate(double deltaTime)
     {
-        Speed = Math.Min(Speed + Acceleration * deltaTime, MaxSpeed);
+        Speed = Math.Min(Speed + _config.Acceleration * deltaTime, MaxSpeed);
     }
     
     public void Decelerate(double deltaTime)
     {
-        Speed = Math.Max(Speed - Deceleration * deltaTime, 0);
+        Speed = Math.Max(Speed - _config.Deceleration * deltaTime, 0);
     }
     
     public void SetTargetSpeed(double targetSpeed, double deltaTime)
     {
         if (Speed < targetSpeed)
         {
-            Speed = Math.Min(Speed + Acceleration * deltaTime, targetSpeed);
+            Speed = Math.Min(Speed + _config.Acceleration * deltaTime, targetSpeed);
         }
         else if (Speed > targetSpeed)
         {
-            Speed = Math.Max(Speed - Deceleration * deltaTime, targetSpeed);
+            Speed = Math.Max(Speed - _config.Deceleration * deltaTime, targetSpeed);
         }
     }
     
@@ -116,7 +114,7 @@ public class Car
         // Rebuild only if we changed lanes or don't have a cache
         if (_cachedPathLane != CurrentLane)
         {
-            _cachedLaneSequence = BuildLaneSequence(LookaheadDistance);
+            _cachedLaneSequence = BuildLaneSequence(_config.LookaheadDistance);
             _cachedPathLane = CurrentLane;
         }
         

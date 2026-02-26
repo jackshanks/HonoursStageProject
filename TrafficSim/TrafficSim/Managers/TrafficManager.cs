@@ -6,20 +6,18 @@ namespace TrafficSim.Managers;
 /// Manages and tracks all vehicles as they go through the network, as well as creating the network
 /// </summary>
 /// <param name="gridManager"></param>
-public class TrafficManager(GridManager gridManager)
+/// <param name="config">Physics and behaviour constants</param>
+public class TrafficManager(GridManager gridManager, SimulationConfig? config = null)
 {
+    private readonly SimulationConfig _config = config ?? SimulationConfig.Default;
     private readonly List<Car> _cars = [];
     private readonly Lock _carsLock = new();
-    
-    private LaneNetwork? _laneNetwork;
-    
-    private readonly Dictionary<Guid, List<Car>> _carsPerLane = new();
-    
-    private readonly Random _random = new();
 
-    private const double SafeFollowingDistance = 5.0;
-    private const double MinFollowingDistance = 2.0;
-    private const double ReactionDistance = 15.0;
+    private LaneNetwork? _laneNetwork;
+
+    private readonly Dictionary<Guid, List<Car>> _carsPerLane = new();
+
+    private readonly Random _random = new();
     
     public bool BuildNetwork(Cell[,] grid, int width, int height, double cellSizeMeters)
     {
@@ -117,19 +115,19 @@ public class TrafficManager(GridManager gridManager)
             switch (distance)
             {
                 // Cars will break sharply at this distance
-                case < MinFollowingDistance:
+                case var d when d < _config.MinFollowingDistance:
                     car.Decelerate(deltaTime);
                     break;
-                case < SafeFollowingDistance:
+                case var d when d < _config.SafeFollowingDistance:
                 {
                     var targetSpeed = Math.Min(carAhead.Speed, car.MaxSpeed);
                     car.SetTargetSpeed(targetSpeed * 0.8, deltaTime);
                     break;
                 }
                 // Cars will begin slowing down at this distance is there is a slow traffic ahead
-                case < ReactionDistance:
+                case var d when d < _config.ReactionDistance:
                 {
-                    var targetSpeed = car.MaxSpeed * (distance / ReactionDistance);
+                    var targetSpeed = car.MaxSpeed * (distance / _config.ReactionDistance);
                     car.SetTargetSpeed(targetSpeed, deltaTime);
                     break;
                 }
@@ -207,7 +205,7 @@ public class TrafficManager(GridManager gridManager)
                 foreach (var existingCar in carsOnLane)
                 {
                     var distance = existingCar.LanePosition * lane.Length;
-                    if (distance < MinFollowingDistance * 2)
+                    if (distance < _config.MinFollowingDistance * 2)
                     {
                         return false;
                     }
@@ -218,7 +216,7 @@ public class TrafficManager(GridManager gridManager)
             var colors = Enum.GetValues<CarColor>();
             var color = colors[_random.Next(colors.Length)];
 
-            var car = new Car(lane, speed, color, startPosition: 0.0);
+            var car = new Car(lane, speed, color, _config, startPosition: 0.0);
             _cars.Add(car);
         }
         
