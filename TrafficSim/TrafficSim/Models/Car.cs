@@ -24,25 +24,22 @@ public class Car
     private const double LookaheadDistance = 30.0;
     
     private Lane? _cachedPathLane;
-    private List<Lane> _cachedLaneSequence;
+    private List<Lane> _cachedLaneSequence = [];
     
     
-    public Car(Lane startLane, double speed, double startPosition = 0.0)
+    public Car(Lane startLane, double speed, CarColor color, double startPosition = 0.0)
     {
         CurrentLane = startLane;
         LanePosition = Math.Clamp(startPosition, 0.0, 1.0);
         Speed = speed;
         MaxSpeed = speed;
-        
+        Color = color;
+
         var pos = startLane.GetPositionAt(LanePosition);
         X = pos.X;
         Y = pos.Y;
-        
+
         (_directionX, _directionY) = startLane.GetDirectionAt(LanePosition);
-        
-        var random = new Random(Guid.NewGuid().GetHashCode());
-        var colors = Enum.GetValues<CarColor>();
-        Color = colors[random.Next(colors.Length)];
     }
 
     public bool Move(double deltaTime)

@@ -215,8 +215,10 @@ public class TrafficManager(GridManager gridManager)
             }
             
             var speed = 10.0 + _random.NextDouble() * 10.0;
-            
-            var car = new Car(lane, speed, startPosition: 0.0);
+            var colors = Enum.GetValues<CarColor>();
+            var color = colors[_random.Next(colors.Length)];
+
+            var car = new Car(lane, speed, color, startPosition: 0.0);
             _cars.Add(car);
         }
         
