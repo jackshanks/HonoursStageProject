@@ -36,6 +36,7 @@ public partial class MainWindow
     private bool _collisionsEnabled;
     
     private bool _isNetworkBuilt;
+    private readonly List<CarRenderData> _renderBuffer = new();
     private bool _isSimulationRunning;
     private bool _isClosing;
     private bool _closeReady;
@@ -166,9 +167,9 @@ public partial class MainWindow
     {
         var pixelsPerMeter = _gridManager.GetPixelsPerMeter();
         
-        var renderData = _trafficManager.GetRenderData();
-        _carRenderer.UpdateAllCarVisuals(renderData, pixelsPerMeter);
-        CarCountText.Text = renderData.Count.ToString();
+        _trafficManager.GetRenderData(_renderBuffer);
+        _carRenderer.UpdateAllCarVisuals(_renderBuffer, pixelsPerMeter);
+        CarCountText.Text = _renderBuffer.Count.ToString();
 
         if (_isNetworkBuilt)
         {

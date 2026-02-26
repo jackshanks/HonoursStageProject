@@ -1,3 +1,4 @@
+using System.Linq;
 using TrafficSim.Models;
 
 namespace TrafficSim.Managers;
@@ -85,18 +86,24 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
         {
             list.Clear();
         }
-        
+
         foreach (var car in _cars)
         {
             if (car.CurrentLane == null) continue;
-            
+
             if (!_carsPerLane.TryGetValue(car.CurrentLane.Id, out var carsOnLane))
             {
                 carsOnLane = [];
                 _carsPerLane[car.CurrentLane.Id] = carsOnLane;
             }
-            
+
             carsOnLane.Add(car);
+        }
+
+        var emptyKeys = _carsPerLane.Where(kvp => kvp.Value.Count == 0).Select(kvp => kvp.Key).ToList();
+        foreach (var key in emptyKeys)
+        {
+            _carsPerLane.Remove(key);
         }
     }
     
@@ -242,14 +249,16 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
         }
     }
     
-    public List<CarRenderData> GetRenderData()
+    public void GetRenderData(List<CarRenderData> output)
     {
+        output.Clear();
         lock (_carsLock)
         {
-            return _cars.Select(c => {
+            foreach (var c in _cars)
+            {
                 var (dx, dy) = c.GetDirection();
-                return new CarRenderData(c.X, c.Y, dx, dy, c.Color);
-            }).ToList();
+                output.Add(new CarRenderData(c.X, c.Y, dx, dy, c.Color));
+            }
         }
     }
 }
