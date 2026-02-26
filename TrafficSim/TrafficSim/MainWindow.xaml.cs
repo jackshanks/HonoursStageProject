@@ -33,10 +33,11 @@ public partial class MainWindow
     private Cell? _lastErasedCell;
     
     private double _simulationSpeed = 1.0;
-    private volatile bool _collisionsEnabled;
+    private bool _collisionsEnabled;
     
     private bool _isNetworkBuilt;
     private bool _isSimulationRunning;
+    private bool _isClosing;
 
     public MainWindow()
     {
@@ -49,13 +50,13 @@ public partial class MainWindow
         
         _collisionsEnabled = ChkCollisions.IsChecked == true;
         
-        ChkCollisions.Checked += (_, _) => _collisionsEnabled = true;
-        ChkCollisions.Unchecked += (_, _) => _collisionsEnabled = false;
+        ChkCollisions.Checked += (_, _) => { lock (_physicsLock) { _collisionsEnabled = true; } };
+        ChkCollisions.Unchecked += (_, _) => { lock (_physicsLock) { _collisionsEnabled = false; } };
 
         // render timer at 60fps on the main thread
         _renderTimer = new DispatcherTimer(DispatcherPriority.Render)
         {
-            Interval = TimeSpan.FromMilliseconds(16)
+            Interval = TimeSpan.FromMilliseconds(16.667)
         };
         _renderTimer.Tick += RenderLoop;
         _renderTimer.Start();
@@ -115,10 +116,9 @@ public partial class MainWindow
 
                     var deltaTime = (double)elapsedTicks / Stopwatch.Frequency;
                     
-                    var collisionsEnabled = _collisionsEnabled;
-
                     lock (_physicsLock)
                     {
+                        var collisionsEnabled = _collisionsEnabled;
                         var adjustedDeltaTime = deltaTime * _simulationSpeed;
                         _accumulatedTime += adjustedDeltaTime;
 
@@ -149,21 +149,15 @@ public partial class MainWindow
         }, token);
     }
     
-    private void StopPhysicsThread()
+    private async Task StopPhysicsThreadAsync()
     {
         _physicsCancellationToken?.Cancel();
-        
+
         if (_physicsTask != null)
-        {
-            var timeout = TimeSpan.FromMilliseconds(500);
-            var completed = _physicsTask.Wait(timeout);
-            
-            if (!completed)
-            {
-                Debug.WriteLine("Physics thread did not stop within timeout, continuing shutdown.");
-            }
+        { 
+            await _physicsTask;
         }
-        
+
         _physicsCancellationToken?.Dispose();
     }
     
@@ -290,10 +284,10 @@ public partial class MainWindow
         UpdateUiState();
     }
     
-    private void BtnStopSim_Click(object sender, RoutedEventArgs e)
+    private async void BtnStopSim_Click(object sender, RoutedEventArgs e)
     {
         _isSimulationRunning = false;
-        StopPhysicsThread();
+        await StopPhysicsThreadAsync();
         UpdateUiState();
     }
     
@@ -409,14 +403,23 @@ public partial class MainWindow
         return RbWest.IsChecked == true ? TrafficDirection.West : TrafficDirection.East;
     }
     
-    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+    protected override async void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
+        if (_isClosing)
+        {
+            _gridManager.Dispose();
+            base.OnClosing(e);
+            return;
+        }
+
+        // Defer the close to await the physics task without blocking the UI thread.
+        e.Cancel = true;
+        _isClosing = true;
+
         _renderTimer.Stop();
         if (_isSimulationRunning)
-        {
-            StopPhysicsThread();
-        }
-        _gridManager.Dispose();
-        base.OnClosing(e);
+            await StopPhysicsThreadAsync();
+
+        Close();
     }
 }

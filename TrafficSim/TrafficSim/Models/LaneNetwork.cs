@@ -20,7 +20,6 @@ public class LaneNetwork
     public void AddLane(Lane lane)
     {
         _lanes[lane.Id] = lane;
-        AddLaneToSpatialIndex(lane);
     }
     
     public TrafficNode? GetNodeAt(int gridX, int gridY)
@@ -28,30 +27,6 @@ public class LaneNetwork
         return _cellToNode.GetValueOrDefault((gridX, gridY));
     }
 
-    private void AddLaneToSpatialIndex(Lane lane)
-    {
-        var cellsToAdd = new HashSet<(int, int)>
-        {
-            (lane.StartNode.GridX, lane.StartNode.GridY),
-            (lane.EndNode.GridX, lane.EndNode.GridY)
-        };
-        
-        if (lane.Type == LaneType.Curved)
-        {
-            const int samples = 10;
-            for (var i = 1; i < samples; i++)
-            {
-                var t = (double)i / samples;
-                var pos = lane.GetPositionAt(t);
-                
-                var gridX = (int)Math.Floor(pos.X / CellSizeMeters);
-                var gridY = (int)Math.Floor(pos.Y / CellSizeMeters);
-                
-                cellsToAdd.Add((gridX, gridY));
-            }
-        }
-    }
-    
     public void Clear()
     {
         _nodes.Clear();
