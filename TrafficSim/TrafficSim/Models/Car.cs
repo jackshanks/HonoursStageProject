@@ -21,7 +21,8 @@ public class Car
     private double _directionY;
 
     private Lane? _cachedPathLane;
-    private List<Lane> _cachedLaneSequence = [];
+    private readonly List<Lane> _cachedLaneSequence = [];
+    private readonly List<(Lane lane, double distanceToStart, double distanceToEnd)> _cachedPathAheadResult = [];
 
 
     public Car(Lane startLane, double speed, CarColor color, SimulationConfig config, double startPosition = 0.0)
@@ -111,49 +112,47 @@ public class Car
     
     public List<(Lane lane, double distanceToStart, double distanceToEnd)> GetCachedPathAhead()
     {
-        // Rebuild only if we changed lanes or don't have a cache
+        // Rebuild lane sequence only if we changed lanes
         if (_cachedPathLane != CurrentLane)
         {
-            _cachedLaneSequence = BuildLaneSequence(_config.LookaheadDistance);
+            BuildLaneSequence(_config.LookaheadDistance);
             _cachedPathLane = CurrentLane;
         }
-        
-        var result = new List<(Lane, double, double)>();
+
+        _cachedPathAheadResult.Clear();
         var currentDist = 0.0;
-        
+
         if (CurrentLane != null)
         {
             var remainingOnCurrent = (1.0 - LanePosition) * CurrentLane.Length;
-            result.Add((CurrentLane, 0, remainingOnCurrent));
+            _cachedPathAheadResult.Add((CurrentLane, 0, remainingOnCurrent));
             currentDist += remainingOnCurrent;
         }
-        
-        foreach(var lane in _cachedLaneSequence)
+
+        foreach (var lane in _cachedLaneSequence)
         {
-            result.Add((lane, currentDist, currentDist + lane.Length));
+            _cachedPathAheadResult.Add((lane, currentDist, currentDist + lane.Length));
             currentDist += lane.Length;
         }
 
-        return result;
+        return _cachedPathAheadResult;
     }
-    
-    private List<Lane> BuildLaneSequence(double maxDist)
+
+    private void BuildLaneSequence(double maxDist)
     {
-        var lanes = new List<Lane>();
-        if (CurrentLane == null) return lanes;
-        var accumulated = (1.0 - LanePosition) * CurrentLane.Length; // Approx
+        _cachedLaneSequence.Clear();
+        if (CurrentLane == null) return;
+        var accumulated = (1.0 - LanePosition) * CurrentLane.Length;
         var curr = CurrentLane;
-    
-        while(accumulated < maxDist)
+
+        while (accumulated < maxDist)
         {
             var next = curr.EndNode.GetNextLane();
-            if(next == null) break;
-            lanes.Add(next);
+            if (next == null) break;
+            _cachedLaneSequence.Add(next);
             accumulated += next.Length;
             curr = next;
         }
-
-        return lanes;
     }
     
     public double GetDistanceTo(Car other)

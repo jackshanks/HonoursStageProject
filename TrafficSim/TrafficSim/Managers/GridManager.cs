@@ -1,4 +1,4 @@
-﻿using System.Windows.Controls;
+using System.Windows.Controls;
 using TrafficSim.Models;
 using TrafficSim.Rendering;
 
@@ -143,12 +143,10 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
             {
                 for (var y = 0; y < GridHeight; y++)
                 {
-                    var cell = _grid[x, y];
-                    cell.SetTypeAndDirection(CellType.Empty, TrafficDirection.None);
+                    _grid[x, y].SetTypeAndDirection(CellType.Empty, TrafficDirection.None);
                 }
             }
-            // Maybe doesn't work? "Dirty" methods need reviewing
-            _renderer.UpdateAllDirtyCells();
+            _renderer.UpdateCellVisual(_grid[0, 0]);
         }
         finally
         {

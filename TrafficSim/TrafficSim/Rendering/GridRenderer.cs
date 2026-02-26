@@ -54,14 +54,6 @@ public class GridRenderer
         // Pre-calculate arrow points for each direction to reuse
         PreCalculateArrowPoints(cellSizePixels);
         
-        for (var x = 0; x < width; x++)
-        {
-            for (var y = 0; y < height; y++)
-            {
-                grid[x, y].IsDirty = true;
-            }
-        }
-        
         RenderGrid();
     }
     
@@ -94,16 +86,10 @@ public class GridRenderer
     public void UpdateCellVisual(Cell cell)
     {
         if (_grid == null) return;
-        
-        cell.IsDirty = true;
         RenderGrid();
     }
-    
-    public void UpdateAllDirtyCells()
-    {
-        RenderGrid();
-    }
-    
+
+
     private void RenderGrid()
     {
         if (_grid == null) return;
@@ -136,7 +122,6 @@ public class GridRenderer
                     DrawArrow(renderOpen, cell, x, y, arrowBrush, ArrowPen);
                 }
                 
-                cell.IsDirty = false;
             }
         }
     }

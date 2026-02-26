@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Media;
 using System.Windows.Shapes;
 
@@ -13,24 +13,19 @@ public class Cell(int x, int y, double cellSizeMeters = 4.0)
     public CellType Type { get; private set; } = CellType.Empty;
     public TrafficDirection Direction { get; private set; } = TrafficDirection.None;
     
-    // Flag for updating a cell visually if it needs updating
-    public bool IsDirty { get; set; } = true;
-    
     public void SetTypeAndDirection(CellType type, TrafficDirection direction)
     {
         if (Type == type && Direction == direction) return;
-        
+
         Type = type;
         Direction = direction;
-        IsDirty = true;
     }
-    
+
     public void SetDirection(TrafficDirection direction)
     {
         if (Direction == direction) return;
-        
+
         Direction = direction;
-        IsDirty = true;
     }
 }
 
