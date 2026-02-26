@@ -90,7 +90,7 @@ public class GridRenderer
     }
 
 
-    private void RenderGrid()
+    public void RenderGrid()
     {
         if (_grid == null) return;
         

@@ -48,7 +48,15 @@ public partial class MainWindow
         _trafficManager = new TrafficManager(_gridManager);
         _carRenderer = new CarRenderer(GridCanvas);
 
-        ParseAndCreateGrid();
+        try
+        {
+            ParseAndCreateGrid();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error creating grid: {ex.Message}", "Error",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
         
         _collisionsEnabled = ChkCollisions.IsChecked == true;
         

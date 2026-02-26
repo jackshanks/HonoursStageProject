@@ -162,10 +162,11 @@ public class Car
         
         var pathAhead = GetCachedPathAhead();
         
-        foreach (var (lane, startDistance, endDistance) in pathAhead)
+        foreach (var (lane, startDistance, _) in pathAhead)
         {
             if (lane.Id != other.CurrentLane.Id) continue;
-            var distanceAlongLane = other.LanePosition * lane.Length;
+            var startOffset = startDistance == 0 ? LanePosition : 0.0;
+            var distanceAlongLane = (other.LanePosition - startOffset) * lane.Length;
             var totalDistance = startDistance + distanceAlongLane;
             
             if (totalDistance > 0)

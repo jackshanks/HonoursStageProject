@@ -146,7 +146,7 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
                     _grid[x, y].SetTypeAndDirection(CellType.Empty, TrafficDirection.None);
                 }
             }
-            _renderer.UpdateCellVisual(_grid[0, 0]);
+            _renderer.RenderGrid();
         }
         finally
         {

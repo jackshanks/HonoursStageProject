@@ -178,7 +178,8 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
                         continue;
                 }
                 
-                var distanceAlongLane = otherCar.LanePosition * lane.Length;
+                var startOffset = lane.Id == car.CurrentLane.Id ? car.LanePosition : 0.0;
+                var distanceAlongLane = (otherCar.LanePosition - startOffset) * lane.Length;
                 var totalDistance = startDistance + distanceAlongLane;
 
                 if (!(totalDistance > 0) || !(totalDistance < minDistance)) continue;
