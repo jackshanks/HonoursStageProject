@@ -1,4 +1,4 @@
-﻿namespace TrafficSim.Models;
+namespace TrafficSim.Models;
 
 public class Car
 {
@@ -67,14 +67,14 @@ public class Car
             }
             
             var overflow = LanePosition - 1.0;
+            var oldLaneLength = CurrentLane.Length;
             CurrentLane = nextLane;
             LanePosition = 0.0;
-            
+
             if (overflow > 0)
             {
-                var overflowMeters = overflow * CurrentLane.Length;
-                var newTDelta = overflowMeters / nextLane.Length;
-                LanePosition = Math.Min(newTDelta, 1.0);
+                var overflowMeters = overflow * oldLaneLength;
+                LanePosition = Math.Min(overflowMeters / CurrentLane.Length, 1.0);
             }
         }
         

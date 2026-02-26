@@ -1,4 +1,4 @@
-﻿using TrafficSim.Models;
+using TrafficSim.Models;
 
 namespace TrafficSim.Managers;
 
@@ -12,10 +12,11 @@ public class TrafficManager(GridManager gridManager)
     private readonly Lock _carsLock = new();
     
     private LaneNetwork? _laneNetwork;
-    private bool _isNetworkBuilt;
     
     private readonly Dictionary<Guid, List<Car>> _carsPerLane = new();
     
+    private readonly Random _random = new();
+
     private const double SafeFollowingDistance = 5.0;
     private const double MinFollowingDistance = 2.0;
     private const double ReactionDistance = 15.0;
@@ -28,7 +29,6 @@ public class TrafficManager(GridManager gridManager)
             _carsPerLane.Clear();
             
             _laneNetwork = NetworkManager.BuildNetwork(grid, width, height, cellSizeMeters);
-            _isNetworkBuilt = true;
             
             return NetworkManager.ValidateNetwork(_laneNetwork);
         }
@@ -50,7 +50,7 @@ public class TrafficManager(GridManager gridManager)
     {
         lock (_carsLock)
         {
-            if (!_isNetworkBuilt || _laneNetwork == null) 
+            if (_laneNetwork == null) 
                 return;
             
             UpdateSpatialIndex();
@@ -188,7 +188,7 @@ public class TrafficManager(GridManager gridManager)
     {
         lock (_carsLock)
         {
-            if (!_isNetworkBuilt || _laneNetwork == null)
+            if (_laneNetwork == null)
                 return false;
             
             var cell = gridManager.GetCellFromPixel(pixelX, pixelY);
@@ -199,8 +199,7 @@ public class TrafficManager(GridManager gridManager)
             if (node == null || node.OutgoingLanes.Count == 0)
                 return false;
             
-            var random = new Random();
-            var lane = node.OutgoingLanes[random.Next(node.OutgoingLanes.Count)];
+            var lane = node.OutgoingLanes[_random.Next(node.OutgoingLanes.Count)];
             
             // Check if there is a car to close
             if (_carsPerLane.TryGetValue(lane.Id, out var carsOnLane))
@@ -215,7 +214,7 @@ public class TrafficManager(GridManager gridManager)
                 }
             }
             
-            var speed = 10.0 + random.NextDouble() * 10.0;
+            var speed = 10.0 + _random.NextDouble() * 10.0;
             
             var car = new Car(lane, speed, startPosition: 0.0);
             _cars.Add(car);
@@ -240,7 +239,6 @@ public class TrafficManager(GridManager gridManager)
             ClearTraffic();
             _laneNetwork?.Clear();
             _laneNetwork = null;
-            _isNetworkBuilt = false;
         }
     }
     

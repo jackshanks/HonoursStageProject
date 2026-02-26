@@ -115,6 +115,8 @@ public partial class MainWindow
 
                     var deltaTime = (double)elapsedTicks / Stopwatch.Frequency;
                     
+                    var collisionsEnabled = _collisionsEnabled;
+
                     lock (_physicsLock)
                     {
                         var adjustedDeltaTime = deltaTime * _simulationSpeed;
@@ -124,12 +126,7 @@ public partial class MainWindow
                         {
                             _accumulatedTime = MaxAccumulatedTime;
                         }
-                    }
-                    
-                    var collisionsEnabled = _collisionsEnabled;
-                    
-                    lock (_physicsLock)
-                    {
+
                         while (_accumulatedTime >= FixedTimeStep)
                         {
                             _trafficManager.UpdatePhysics(FixedTimeStep, collisionsEnabled);
@@ -176,7 +173,8 @@ public partial class MainWindow
         
         var renderData = _trafficManager.GetRenderData();
         _carRenderer.UpdateAllCarVisuals(renderData, pixelsPerMeter);
-        
+        CarCountText.Text = renderData.Count.ToString();
+
         if (_isNetworkBuilt)
         {
             NetworkInfoText.Text = _trafficManager.GetNetworkInfo();

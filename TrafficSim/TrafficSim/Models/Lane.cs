@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 
 namespace TrafficSim.Models;
 
@@ -20,6 +20,8 @@ public class Lane
     
     private readonly Point _startPoint;
     private readonly Point _endPoint;
+    // Chached direction so isn't calculated on fly for simple node to node
+    private readonly (double dx, double dy) _straightDirection;
 
     public Lane(TrafficNode startNode, TrafficNode endNode, TrafficDirection startDirection, TrafficDirection endDirection)
     {
@@ -28,10 +30,10 @@ public class Lane
         EndNode = endNode;
         StartDirection = startDirection;
         EndDirection = endDirection;
-        
+
         _startPoint = new Point(startNode.X, startNode.Y);
         _endPoint = new Point(endNode.X, endNode.Y);
-        
+
         if (startDirection != endDirection)
         {
             // A lot of maths and code just to make a nice looking turn
@@ -43,6 +45,11 @@ public class Lane
         {
             Type = LaneType.Straight;
             Length = CalculateStraightLength();
+            // Calculates the direction, and allows us to pre-define direction if straight
+            var dx = _endPoint.X - _startPoint.X;
+            var dy = _endPoint.Y - _startPoint.Y;
+            var len = Math.Sqrt(dx * dx + dy * dy);
+            _straightDirection = len > 0 ? (dx / len, dy / len) : (0, 0);
         }
         
         startNode.OutgoingLanes.Add(this);
@@ -81,24 +88,17 @@ public class Lane
         t = Math.Clamp(t, 0.0, 1.0);
         
         if (Type == LaneType.Straight)
-        {
-            var dx = _endPoint.X - _startPoint.X;
-            var dy = _endPoint.Y - _startPoint.Y;
-            var length = Math.Sqrt(dx * dx + dy * dy);
-            return length > 0 ? (dx / length, dy / length) : (0, 0);
-        }
-        else
-        {
-            // quadratic bezier B'(t) = 2(1-t)(P1-P0) + 2t(P2-P1) - lots of math
-            var oneMinusT = 1.0 - t;
-            var cp = ControlPoint!.Value;
+            return _straightDirection;
+        
+        // quadratic bezier B'(t) = 2(1-t)(P1-P0) + 2t(P2-P1) - lots of math
+        var oneMinusT = 1.0 - t;
+        var cp = ControlPoint!.Value;
             
-            var dx = 2 * oneMinusT * (cp.X - _startPoint.X) + 2 * t * (_endPoint.X - cp.X);
-            var dy = 2 * oneMinusT * (cp.Y - _startPoint.Y) + 2 * t * (_endPoint.Y - cp.Y);
+        var dx = 2 * oneMinusT * (cp.X - _startPoint.X) + 2 * t * (_endPoint.X - cp.X);
+        var dy = 2 * oneMinusT * (cp.Y - _startPoint.Y) + 2 * t * (_endPoint.Y - cp.Y);
             
-            var length = Math.Sqrt(dx * dx + dy * dy);
-            return length > 0 ? (dx / length, dy / length) : (0, 0);
-        }
+        var length = Math.Sqrt(dx * dx + dy * dy);
+        return length > 0 ? (dx / length, dy / length) : (0, 0);
     }
     
     private static Point CalculateControlPoint(TrafficNode startNode, TrafficNode endNode, 

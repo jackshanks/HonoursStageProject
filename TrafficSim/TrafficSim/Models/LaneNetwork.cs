@@ -1,4 +1,4 @@
-﻿namespace TrafficSim.Models;
+namespace TrafficSim.Models;
 
 public class LaneNetwork
 {
@@ -6,7 +6,6 @@ public class LaneNetwork
     private readonly Dictionary<Guid, Lane> _lanes = new();
     
     private readonly Dictionary<(int, int), TrafficNode> _cellToNode = new();
-    private readonly Dictionary<(int, int), List<Lane>> _cellToLanes = new();
     
     public IReadOnlyCollection<TrafficNode> Nodes => _nodes.Values;
 
@@ -51,17 +50,6 @@ public class LaneNetwork
                 cellsToAdd.Add((gridX, gridY));
             }
         }
-        
-        foreach (var cell in cellsToAdd)
-        {
-            if (!_cellToLanes.TryGetValue(cell, out var value))
-            {
-                value = [];
-                _cellToLanes[cell] = value;
-            }
-
-            value.Add(lane);
-        }
     }
     
     public void Clear()
@@ -69,14 +57,18 @@ public class LaneNetwork
         _nodes.Clear();
         _lanes.Clear();
         _cellToNode.Clear();
-        _cellToLanes.Clear();
     }
     
     public (int nodeCount, int laneCount, int straightLanes, int curvedLanes) GetStats()
     {
-        var straightCount = _lanes.Values.Count(l => l.Type == LaneType.Straight);
-        var curvedCount = _lanes.Values.Count(l => l.Type == LaneType.Curved);
-        
+        var straightCount = 0;
+        var curvedCount = 0;
+        foreach (var lane in _lanes.Values)
+        {
+            if (lane.Type == LaneType.Straight) straightCount++;
+            else if (lane.Type == LaneType.Curved) curvedCount++;
+        }
+
         return (_nodes.Count, _lanes.Count, straightCount, curvedCount);
     }
 }

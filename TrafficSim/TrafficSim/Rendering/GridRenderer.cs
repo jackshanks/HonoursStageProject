@@ -13,11 +13,22 @@ public class GridRenderer
     private int _width;
     private int _height;
     private double _cellSizePixels;
-    
+
     private readonly Point[] _arrowPointsNorth = new Point[3];
     private readonly Point[] _arrowPointsEast = new Point[3];
     private readonly Point[] _arrowPointsSouth = new Point[3];
     private readonly Point[] _arrowPointsWest = new Point[3];
+
+    // Frozen pen objects to avoid new objects every render call 
+    private static readonly Pen GridLinePen = MakeFrozenPen(Brushes.LightGray, 0.3);
+    private static readonly Pen ArrowPen    = MakeFrozenPen(Brushes.Black, 1);
+
+    private static Pen MakeFrozenPen(Brush brush, double thickness)
+    {
+        var pen = new Pen(brush, thickness);
+        pen.Freeze();
+        return pen;
+    }
 
     public GridRenderer(Canvas canvas)
     {
@@ -102,12 +113,7 @@ public class GridRenderer
         var emptyBrush = Brushes.White;
         var roadBrush = Brushes.DarkGray;
         var intersectionBrush = Brushes.Blue;
-        var gridLinePen = new Pen(Brushes.LightGray, 0.3);
         var arrowBrush = Brushes.Yellow;
-        var arrowPen = new Pen(Brushes.Black, 1);
-        
-        gridLinePen.Freeze();
-        arrowPen.Freeze();
         
         for (var x = 0; x < _width; x++)
         {
@@ -123,11 +129,11 @@ public class GridRenderer
                     _ => emptyBrush
                 };
                 
-                renderOpen.DrawRectangle(brush, gridLinePen, rect);
+                renderOpen.DrawRectangle(brush, GridLinePen, rect);
                 
                 if (cell.Type == CellType.Road && cell.Direction != TrafficDirection.None)
                 {
-                    DrawArrow(renderOpen, cell, x, y, arrowBrush, arrowPen);
+                    DrawArrow(renderOpen, cell, x, y, arrowBrush, ArrowPen);
                 }
                 
                 cell.IsDirty = false;

@@ -25,14 +25,6 @@ public class Cell(int x, int y, double cellSizeMeters = 4.0)
         IsDirty = true;
     }
     
-    public void SetType(CellType type)
-    {
-        if (Type == type) return;
-        
-        Type = type;
-        IsDirty = true;
-    }
-    
     public void SetDirection(TrafficDirection direction)
     {
         if (Direction == direction) return;
