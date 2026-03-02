@@ -20,6 +20,12 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
     
     private Cell[,]? _grid;
     
+    /// <summary>
+    /// Creates and draws a grid
+    /// </summary>
+    /// <param name="width">How many cells wide</param>
+    /// <param name="height">How many cells tall</param>
+    /// <param name="cellSizePixels">Pixels per cell</param>
     public void CreateGrid(int width, int height, double cellSizePixels)
     {
         _gridLock.EnterWriteLock();
@@ -47,6 +53,12 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
         }
     }
 
+    /// <summary>
+    /// Gets a cell from the grid
+    /// </summary>
+    /// <param name="x">x coord of the cell</param>
+    /// <param name="y">y coord of the cell</param>
+    /// <returns></returns>
     private Cell? GetCell(int x, int y)
     {
         if (x >= 0 && x < GridWidth && y >= 0 && y < GridHeight)
@@ -56,11 +68,18 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
         return null;
     }
     
+    /// <summary>
+    /// Gets a cell from a pixel position, used for mouse actions
+    /// </summary>
+    /// <param name="pixelX">xThe pixels x value</param>
+    /// <param name="pixelY">The pixels y value</param>
+    /// <returns></returns>
     public Cell? GetCellFromPixel(double pixelX, double pixelY)
     {
         _gridLock.EnterReadLock();
         try
         {
+            // Finds the matching cells by dividing by each cell's size and using floor (in case of negative coords)
             var x = (int)Math.Floor(pixelX / CellSizePixels);
             var y = (int)Math.Floor(pixelY / CellSizePixels);
             return GetCell(x, y);
@@ -71,6 +90,12 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
         }
     }
     
+    /// <summary>
+    /// Gets a cell from a grid position
+    /// </summary>
+    /// <param name="x">x coord of the cell</param>
+    /// <param name="y">y coord of the cell</param>
+    /// <returns></returns>
     public Cell? GetCellFromGridCoords(int x, int y)
     {
         _gridLock.EnterReadLock();
@@ -84,6 +109,10 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
         }
     }
     
+    /// <summary>
+    /// Gets the number of pixels per meter
+    /// </summary>
+    /// <returns></returns>
     public double GetPixelsPerMeter()
     {
         _gridLock.EnterReadLock();
@@ -98,6 +127,12 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
         }
     }
     
+    /// <summary>
+    /// Sets the cell direction
+    /// </summary>
+    /// <param name="x">x coord of the cell</param>
+    /// <param name="y">y coord of the cell</param>
+    /// <param name="direction">Direction using TrafficDirection Enum</param>
     public void SetCellDirection(int x, int y, TrafficDirection direction)
     {
         _gridLock.EnterWriteLock();
@@ -115,6 +150,13 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
         }
     }
     
+    /// <summary>
+    /// Sets the cell's type and direction
+    /// </summary>
+    /// <param name="x">x coord of the cell</param>
+    /// <param name="y">y coord of the cell</param>
+    /// <param name="type">Type of cell using CellType Enum (I.E. junction/road)</param>
+    /// <param name="direction">Direction using TrafficDirection Enum</param>
     public void SetCellTypeAndDirection(int x, int y, CellType type, TrafficDirection direction)
     {
         _gridLock.EnterWriteLock();
@@ -132,6 +174,9 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
         }
     }
     
+    /// <summary>
+    /// Clears direction and type of all cells
+    /// </summary>
     public void ClearAllCells()
     {
         _gridLock.EnterWriteLock();
@@ -154,6 +199,27 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
         }
     }
     
+    /// <summary>
+    /// Sets all give way nodes in one (at build) to hand to the render
+    /// </summary>
+    /// <param name="nodes">List of nodes marked as give-way</param>
+    public void SetGiveWayNodes(IEnumerable<(int gridX, int gridY)> nodes)
+    {
+        _renderer.SetGiveWayNodes(nodes);
+    }
+
+    /// <summary>
+    /// Clears all give-way nodes
+    /// </summary>
+    public void ClearGiveWayNodes()
+    {
+        _renderer.ClearGiveWayNodes();
+    }
+
+    /// <summary>
+    /// Checks if the grid has been created (Edge case as grid should be made on program run)
+    /// </summary>
+    /// <returns></returns>
     public bool HasGrid()
     {
         _gridLock.EnterReadLock();
@@ -167,6 +233,11 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
         }
     }
     
+    /// <summary>
+    /// Gets all info of a cell to be displayed
+    /// </summary>
+    /// <param name="cell">Cell to get info about</param>
+    /// <returns></returns>
     public static string GetCellInfo(Cell? cell)
     {
         if (cell == null) return "Error: Cell not found";
@@ -175,6 +246,9 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
         return $"Grid: ({cell.X}, {cell.Y}) | Position: ({cell.RealWorldX:F1}m, {cell.RealWorldY:F1}m) | Type: {cell.Type}{directionText}";
     }
     
+    /// <summary>
+    /// gridLock requires a Dispose to it frees the object
+    /// </summary>
     public void Dispose()
     {
         _gridLock.Dispose();

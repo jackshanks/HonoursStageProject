@@ -15,8 +15,8 @@
         <Style x:Key="ControlCard" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource BgPanel}"/>
             <Setter Property="CornerRadius" Value="6"/>
-            <Setter Property="Margin" Value="0,0,0,15"/>
-            <Setter Property="Padding" Value="15"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+            <Setter Property="Padding" Value="12"/>
             <Setter Property="Effect">
                 <Setter.Value>
                     <DropShadowEffect Color="Black" BlurRadius="10" ShadowDepth="2" Opacity="0.3"/>
@@ -24,12 +24,11 @@
             </Setter>
         </Style>
 
-        <Style x:Key="HeaderTitle" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="14"/>
+        <Style x:Key="SectionLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
-            <Setter Property="Margin" Value="0,0,0,10"/>
-            <Setter Property="TextDecorations" Value="Underline"/>
+            <Setter Property="Foreground" Value="#888888"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
         </Style>
 
         <Style x:Key="LabelText" TargetType="TextBlock">
@@ -46,9 +45,9 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TextBox">
-                        <Border Background="{TemplateBinding Background}" 
-                                BorderBrush="{TemplateBinding BorderBrush}" 
-                                BorderThickness="{TemplateBinding BorderThickness}" 
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
                                 CornerRadius="3">
                             <ScrollViewer x:Name="PART_ContentHost"/>
                         </Border>
@@ -62,9 +61,10 @@
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="Padding" Value="10,8"/>
-            <Setter Property="Margin" Value="0,0,0,8"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -78,122 +78,255 @@
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="border" Property="Background" Value="#007ACC"/>
                             </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="border" Property="Opacity" Value="0.4"/>
+                            </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
 
-        <Style TargetType="RadioButton">
-            <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
-            <Setter Property="Margin" Value="0,4"/>
+        <!-- Pill-style radio buttons for cell type / direction / junction type -->
+        <Style x:Key="SegmentedRadio" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Margin" Value="2"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="border" Background="#3E3E42" Padding="8,7" CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#007ACC"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#505055"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="border" Property="Opacity" Value="0.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
     </Window.Resources>
 
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="320"/>
+            <ColumnDefinition Width="300"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
-        <Border Grid.Column="0" Background="{StaticResource BgDark}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
+        <!-- Sidebar -->
+        <Border Grid.Column="0" Background="{StaticResource BgDark}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
-                <StackPanel>
-                    <StackPanel Margin="0,15,0,15">
-                        <TextBlock Text="TRAFFIC SIMULATOR" FontSize="22" FontWeight="Bold" Foreground="{StaticResource AccentColor}" TextAlignment="Center"/>
-                    </StackPanel>
+                <StackPanel Margin="12,15,12,15">
 
+                    <TextBlock Text="TRAFFIC SIMULATOR" FontSize="20" FontWeight="Bold"
+                               Foreground="{StaticResource AccentColor}" TextAlignment="Center"
+                               Margin="0,0,0,15"/>
+
+                    <!-- Grid Setup (compact) -->
                     <Border Style="{StaticResource ControlCard}">
                         <StackPanel>
-                            <TextBlock Text="Grid Setup" Style="{StaticResource HeaderTitle}" TextAlignment="Center"/>
-                            
+                            <TextBlock Text="GRID SETUP" Style="{StaticResource SectionLabel}"/>
                             <Grid Margin="0,0,0,8">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="10"/>
+                                    <ColumnDefinition Width="6"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="6"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0">
-                                    <TextBlock Text="Width" Style="{StaticResource LabelText}" FontSize="11"/>
+                                    <TextBlock Text="Width" Style="{StaticResource LabelText}" FontSize="10"/>
                                     <TextBox x:Name="TxtGridWidth" Text="25"/>
                                 </StackPanel>
                                 <StackPanel Grid.Column="2">
-                                    <TextBlock Text="Height" Style="{StaticResource LabelText}" FontSize="11"/>
+                                    <TextBlock Text="Height" Style="{StaticResource LabelText}" FontSize="10"/>
                                     <TextBox x:Name="TxtGridHeight" Text="20"/>
                                 </StackPanel>
+                                <StackPanel Grid.Column="4">
+                                    <TextBlock Text="Cell px" Style="{StaticResource LabelText}" FontSize="10"/>
+                                    <TextBox x:Name="TxtCellSize" Text="30"/>
+                                </StackPanel>
                             </Grid>
-
-                            <TextBlock Text="Cell Size (px)" Style="{StaticResource LabelText}" FontSize="11"/>
-                            <TextBox x:Name="TxtCellSize" Text="30" Margin="0,0,0,15"/>
-
-                            <Button x:Name="BtnCreateGrid" Content="Create New Grid" Click="BtnCreateGrid_Click"/>
-                            <Button x:Name="BtnClear" Content="Clear All" Click="BtnClear_Click" Background="#4A2020"/>
-                        </StackPanel>
-                    </Border>
-
-                    <Border Style="{StaticResource ControlCard}">
-                        <StackPanel>
-                            <TextBlock Text="Road Drawing" Style="{StaticResource HeaderTitle}"/>
-                            
-                            <TextBlock Text="Select Direction:" Style="{StaticResource LabelText}" Margin="0,0,0,5"/>
-                            <UniformGrid Columns="2">
-                                <RadioButton x:Name="RbNorth" Content="North ↑" GroupName="Direction"/>
-                                <RadioButton x:Name="RbEast" Content="East →" GroupName="Direction" IsChecked="True"/>
-                                <RadioButton x:Name="RbSouth" Content="South ↓" GroupName="Direction"/>
-                                <RadioButton x:Name="RbWest" Content="West ←" GroupName="Direction"/>
-                            </UniformGrid>
-
-                            <TextBlock Text="Left-click (drag): draw roads  |  Right-click (drag): erase"
-                                       FontSize="11" Foreground="#888" Margin="0,10,0,0" TextWrapping="Wrap" FontStyle="Italic"/>
-                        </StackPanel>
-                    </Border>
-
-                    <Border Style="{StaticResource ControlCard}">
-                        <StackPanel>
-                            <TextBlock Text="Lane Network" Style="{StaticResource HeaderTitle}"/>
-
-                            <Button x:Name="BtnBuildNetwork" Content="Build Network" 
-                                    Click="BtnBuildNetwork_Click" Background="{StaticResource AccentColor}"/>
-
-                            <TextBlock x:Name="NetworkInfoText" Text="Status: Network not built" 
-                                       FontSize="11" Foreground="{StaticResource TextSecondary}" Margin="0,5,0,0"/>
-                        </StackPanel>
-                    </Border>
-
-                    <Border Style="{StaticResource ControlCard}">
-                        <StackPanel>
-                            <TextBlock Text="Simulation Control" Style="{StaticResource HeaderTitle}"/>
-
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="10"/>
+                                    <ColumnDefinition Width="6"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
-                                <Button Grid.Column="0" x:Name="BtnStartSim" Content="▶ Start" Click="BtnStartSim_Click" Background="#2D5A30"/>
-                                <Button Grid.Column="2" x:Name="BtnStopSim" Content="⏸ Stop" Click="BtnStopSim_Click" Background="#664400"/>
+                                <Button Grid.Column="0" x:Name="BtnCreateGrid" Content="Apply Grid"
+                                        Click="BtnCreateGrid_Click" Margin="0"/>
+                                <Button Grid.Column="2" x:Name="BtnClear" Content="Clear"
+                                        Click="BtnClear_Click" Background="#4A2020" Margin="0"/>
                             </Grid>
-
-                            <CheckBox x:Name="ChkCollisions" Content="Enable Collisions" 
-                                      IsChecked="True" Foreground="{StaticResource TextSecondary}" Margin="0,10"/>
-
-                            <Separator Background="#444" Margin="0,5,0,10"/>
-                            <DockPanel LastChildFill="False" Margin="0,0,0,5">
-                                <TextBlock Text="Speed Multiplier" Style="{StaticResource LabelText}"/>
-                                <TextBlock x:Name="TxtSimSpeed" Text="1.0x" FontWeight="Bold" 
-                                           Foreground="{StaticResource AccentColor}" DockPanel.Dock="Right"/>
-                            </DockPanel>
-                            
-                            <Slider x:Name="SliderSimSpeed" Minimum="0.1" Maximum="3.0" Value="1.0" 
-                                    TickFrequency="0.1" IsSnapToTickEnabled="True"/>
                         </StackPanel>
                     </Border>
 
+                    <!-- Road Drawing -->
+                    <Border Style="{StaticResource ControlCard}">
+                        <StackPanel>
+                            <TextBlock Text="ROAD DRAWING" Style="{StaticResource SectionLabel}"/>
+
+                            <!-- Cell Type segmented toggle -->
+                            <TextBlock Text="Cell Type" Foreground="#666" FontSize="10" Margin="0,0,0,4"/>
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <RadioButton Grid.Column="0" x:Name="RbCellRoad" Content="Road"
+                                             GroupName="CellType" IsChecked="True"
+                                             Style="{StaticResource SegmentedRadio}"/>
+                                <RadioButton Grid.Column="1" x:Name="RbIntersection" Content="Intersection"
+                                             GroupName="CellType"
+                                             Style="{StaticResource SegmentedRadio}"/>
+                            </Grid>
+
+                            <!-- Direction compass (Road only) -->
+                            <StackPanel Visibility="{Binding IsChecked, ElementName=RbCellRoad, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="Direction" Foreground="#666" FontSize="10" Margin="0,0,0,6"/>
+                                <Grid HorizontalAlignment="Center">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="4"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="4"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="72"/>
+                                        <ColumnDefinition Width="4"/>
+                                        <ColumnDefinition Width="72"/>
+                                        <ColumnDefinition Width="4"/>
+                                        <ColumnDefinition Width="72"/>
+                                    </Grid.ColumnDefinitions>
+                                    <RadioButton Grid.Row="0" Grid.Column="2"
+                                                 x:Name="RbNorth" Content="↑  N"
+                                                 GroupName="Direction" Style="{StaticResource SegmentedRadio}"/>
+                                    <RadioButton Grid.Row="2" Grid.Column="0"
+                                                 x:Name="RbWest" Content="←  W"
+                                                 GroupName="Direction" Style="{StaticResource SegmentedRadio}"/>
+                                    <Border Grid.Row="2" Grid.Column="2" Background="#1A1A1E" CornerRadius="4"/>
+                                    <RadioButton Grid.Row="2" Grid.Column="4"
+                                                 x:Name="RbEast" Content="E  →"
+                                                 GroupName="Direction" IsChecked="True"
+                                                 Style="{StaticResource SegmentedRadio}"/>
+                                    <RadioButton Grid.Row="4" Grid.Column="2"
+                                                 x:Name="RbSouth" Content="↓  S"
+                                                 GroupName="Direction" Style="{StaticResource SegmentedRadio}"/>
+                                </Grid>
+                            </StackPanel>
+
+                            <!-- Junction Type (Intersection only) -->
+                            <StackPanel Visibility="{Binding IsChecked, ElementName=RbIntersection, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="Junction Type" Foreground="#666" FontSize="10" Margin="0,0,0,6"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <RadioButton Grid.Column="0" x:Name="RbGiveWay" Content="Give Way"
+                                                 GroupName="JunctionType" IsChecked="True"
+                                                 Style="{StaticResource SegmentedRadio}"/>
+                                    <RadioButton Grid.Column="1" x:Name="RbStop" Content="Stop"
+                                                 GroupName="JunctionType"
+                                                 Style="{StaticResource SegmentedRadio}"/>
+                                    <RadioButton Grid.Column="2" x:Name="RbTrafficLight" Content="T. Light"
+                                                 GroupName="JunctionType"
+                                                 Style="{StaticResource SegmentedRadio}"/>
+                                </Grid>
+
+                                <!-- Give Way direction config (Give Way type only) -->
+                                <StackPanel Visibility="{Binding IsChecked, ElementName=RbGiveWay, Converter={StaticResource BoolToVis}}"
+                                            Margin="0,8,0,0">
+                                    <TextBlock Text="Selected Junction" Foreground="#666" FontSize="10" Margin="0,0,0,2"/>
+                                    <TextBlock x:Name="TxtSelectedJunction" Text="(none — click a junction)"
+                                               Foreground="#888" FontSize="10" Margin="0,0,0,6"/>
+                                    <TextBlock Text="Give Way Directions" Foreground="#666" FontSize="10" Margin="0,0,0,4"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="4"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <CheckBox Grid.Row="0" Grid.Column="0" x:Name="ChkGiveWayNorth" Content="↑ North"
+                                                  Foreground="{StaticResource TextSecondary}" Margin="0,0,4,0"/>
+                                        <CheckBox Grid.Row="0" Grid.Column="1" x:Name="ChkGiveWayEast"  Content="→ East"
+                                                  Foreground="{StaticResource TextSecondary}"/>
+                                        <CheckBox Grid.Row="2" Grid.Column="0" x:Name="ChkGiveWaySouth" Content="↓ South"
+                                                  Foreground="{StaticResource TextSecondary}" Margin="0,0,4,0"/>
+                                        <CheckBox Grid.Row="2" Grid.Column="1" x:Name="ChkGiveWayWest"  Content="← West"
+                                                  Foreground="{StaticResource TextSecondary}"/>
+                                    </Grid>
+                                </StackPanel>
+                            </StackPanel>
+
+                            <TextBlock Text="Left-drag: draw  ·  Right-drag: erase"
+                                       FontSize="10" Foreground="#555" Margin="0,10,0,0" FontStyle="Italic"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Simulation (includes Build Network + run controls) -->
                     <Border Style="{StaticResource ControlCard}" Margin="0">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="Active Cars:" Style="{StaticResource HeaderTitle}" Margin="0,0,10,0" VerticalAlignment="Center"/>
-                            <TextBlock x:Name="CarCountText" Text="0" FontWeight="Bold" FontSize="16" Foreground="{StaticResource AccentColor}" VerticalAlignment="Center"/>
+                        <StackPanel>
+                            <TextBlock Text="SIMULATION" Style="{StaticResource SectionLabel}"/>
+
+                            <Button x:Name="BtnBuildNetwork" Content="⚙  Build Network"
+                                    Click="BtnBuildNetwork_Click" Background="{StaticResource AccentColor}"/>
+                            <TextBlock x:Name="NetworkInfoText" Text="Network not built"
+                                       FontSize="11" Foreground="{StaticResource TextSecondary}"/>
+
+                            <!-- Hidden until network is built -->
+                            <StackPanel x:Name="SimRunControlsPanel" Visibility="Collapsed">
+                                <Separator Background="#3E3E42" Margin="0,10"/>
+
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="6"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Button Grid.Column="0" x:Name="BtnStartSim" Content="▶  Start"
+                                            Click="BtnStartSim_Click" Background="#2D5A30" Margin="0"/>
+                                    <Button Grid.Column="2" x:Name="BtnStopSim" Content="⏸  Stop"
+                                            Click="BtnStopSim_Click" Background="#664400" Margin="0"/>
+                                </Grid>
+
+                                <CheckBox x:Name="ChkCollisions" Content="Enable Collisions"
+                                          IsChecked="True" Foreground="{StaticResource TextSecondary}"
+                                          Margin="0,4,0,10"/>
+
+                                <DockPanel LastChildFill="False" Margin="0,0,0,4">
+                                    <TextBlock Text="Speed" Style="{StaticResource LabelText}"/>
+                                    <TextBlock x:Name="TxtSimSpeed" Text="1.0×" FontWeight="Bold"
+                                               Foreground="{StaticResource AccentColor}" DockPanel.Dock="Right"/>
+                                </DockPanel>
+                                <Slider x:Name="SliderSimSpeed" Minimum="0.1" Maximum="3.0" Value="1.0"
+                                        TickFrequency="0.1" IsSnapToTickEnabled="True" Margin="0,0,0,10"/>
+
+                                <Separator Background="#3E3E42" Margin="0,0,0,8"/>
+                                <Button x:Name="BtnReturnToEditing" Content="← Return to Editing"
+                                        Click="BtnReturnToEditing_Click" Margin="0"/>
+                            </StackPanel>
+
                         </StackPanel>
                     </Border>
 
@@ -201,13 +334,15 @@
             </ScrollViewer>
         </Border>
 
+        <!-- Main canvas area -->
         <Grid Grid.Column="1" Background="#121212">
             <Grid.RowDefinitions>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <Border Grid.Row="0" Margin="20" Background="#2D2D30" CornerRadius="4" BorderBrush="#3E3E42" BorderThickness="1">
+            <Border Grid.Row="0" Margin="20" Background="#2D2D30" CornerRadius="4"
+                    BorderBrush="#3E3E42" BorderThickness="1">
                 <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" PanningMode="Both">
                     <Canvas x:Name="GridCanvas"
                             Background="#181818"
@@ -221,13 +356,24 @@
                 </ScrollViewer>
             </Border>
 
-            <Border Grid.Row="1" Background="{StaticResource BgPanel}" Padding="10,5" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="STATUS:" FontWeight="Bold" Foreground="{StaticResource AccentColor}" Margin="0,0,10,0"/>
-                    <TextBlock x:Name="StatusText" 
-                               Text="Ready. Draw roads with left-click, then build network to start." 
-                               Foreground="{StaticResource TextSecondary}"/>
-                </StackPanel>
+            <!-- Status bar with Active Cars -->
+            <Border Grid.Row="1" Background="{StaticResource BgPanel}" Padding="10,6"
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+                <DockPanel>
+                    <TextBlock x:Name="FpsText" Text="FPS: --" FontWeight="Bold"
+                               Foreground="{StaticResource AccentColor}" DockPanel.Dock="Right" Margin="15,0,0,0"/>
+                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" Margin="15,0,0,0">
+                        <TextBlock Text="Cars: " FontWeight="Bold" Foreground="{StaticResource AccentColor}"/>
+                        <TextBlock x:Name="CarCountText" Text="0" FontWeight="Bold"
+                                   Foreground="{StaticResource AccentColor}"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="STATUS: " FontWeight="Bold" Foreground="{StaticResource AccentColor}"/>
+                        <TextBlock x:Name="StatusText"
+                                   Text="Draw roads with left-click, then build network to start."
+                                   Foreground="{StaticResource TextSecondary}"/>
+                    </StackPanel>
+                </DockPanel>
             </Border>
         </Grid>
     </Grid>

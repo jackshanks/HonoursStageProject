@@ -15,9 +15,14 @@ public class TrafficNode(double x, double y, int gridX, int gridY)
 
     public Enums Enums { get; set; } = Enums.Regular;
 
-    // TODO: pathfinding
+    public bool IsGiveWay { get; set; }
+    
+    // Approach nodes that have priority over this node
+    public List<TrafficNode> PriorityNodes { get; } = [];
+
+    // TODO: pathfinding, currently picks a random outgoing lane
     public Lane? GetNextLane()
     {
-        return OutgoingLanes.Count == 0 ? null : OutgoingLanes[0];
+        return OutgoingLanes.Count == 0 ? null : OutgoingLanes[Random.Shared.Next(OutgoingLanes.Count)];
     }
 }

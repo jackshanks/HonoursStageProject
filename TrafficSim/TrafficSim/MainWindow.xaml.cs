@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Input;
-using System.Windows.Threading;
+using System.Windows.Media;
 using TrafficSim.Managers;
 using TrafficSim.Models;
 using TrafficSim.Rendering;
@@ -16,7 +16,7 @@ public partial class MainWindow
     private readonly GridManager _gridManager;
     private readonly TrafficManager _trafficManager;
     private readonly CarRenderer _carRenderer;
-    private readonly DispatcherTimer _renderTimer;
+    private TimeSpan _lastRenderTime = TimeSpan.MinValue;
     
     private Task? _physicsTask;
     private CancellationTokenSource? _physicsCancellationToken;
@@ -31,6 +31,9 @@ public partial class MainWindow
     private Cell? _lastDrawnCell;
     private bool _isErasing;
     private Cell? _lastErasedCell;
+
+    private Cell? _selectedJunctionCell;
+    private bool _updatingGiveWayCheckboxes;
     
     private double _simulationSpeed = 1.0;
     private bool _collisionsEnabled;
@@ -40,6 +43,11 @@ public partial class MainWindow
     private bool _isSimulationRunning;
     private bool _isClosing;
     private bool _closeReady;
+
+    // FPS tracking
+    private readonly Stopwatch _fpsStopwatch = Stopwatch.StartNew();
+    private int _frameCount;
+    private double _fps;
 
     public MainWindow()
     {
@@ -59,17 +67,20 @@ public partial class MainWindow
         }
         
         _collisionsEnabled = ChkCollisions.IsChecked == true;
-        
+
         ChkCollisions.Checked += (_, _) => { lock (_physicsLock) { _collisionsEnabled = true; } };
         ChkCollisions.Unchecked += (_, _) => { lock (_physicsLock) { _collisionsEnabled = false; } };
 
-        // render timer at 60fps on the main thread
-        _renderTimer = new DispatcherTimer(DispatcherPriority.Render)
-        {
-            Interval = TimeSpan.FromMilliseconds(16.667)
-        };
-        _renderTimer.Tick += RenderLoop;
-        _renderTimer.Start();
+        ChkGiveWayNorth.Checked   += GiveWayCheckbox_Changed;
+        ChkGiveWayNorth.Unchecked += GiveWayCheckbox_Changed;
+        ChkGiveWayEast.Checked    += GiveWayCheckbox_Changed;
+        ChkGiveWayEast.Unchecked  += GiveWayCheckbox_Changed;
+        ChkGiveWaySouth.Checked   += GiveWayCheckbox_Changed;
+        ChkGiveWaySouth.Unchecked += GiveWayCheckbox_Changed;
+        ChkGiveWayWest.Checked    += GiveWayCheckbox_Changed;
+        ChkGiveWayWest.Unchecked  += GiveWayCheckbox_Changed;
+
+        CompositionTarget.Rendering += RenderLoop;
 
         SliderSimSpeed.ValueChanged += (_, _) =>
         {
@@ -88,21 +99,22 @@ public partial class MainWindow
         BtnBuildNetwork.IsEnabled = !_isSimulationRunning;
         BtnCreateGrid.IsEnabled = !_isSimulationRunning;
         BtnClear.IsEnabled = !_isSimulationRunning;
-        
-        BtnStartSim.IsEnabled = _isNetworkBuilt && !_isSimulationRunning;
+
+        SimRunControlsPanel.Visibility = _isNetworkBuilt ? Visibility.Visible : Visibility.Collapsed;
+        BtnStartSim.IsEnabled = !_isSimulationRunning;
         BtnStopSim.IsEnabled = _isSimulationRunning;
-        
+
         if (_isSimulationRunning)
         {
-            StatusText.Text = "Simulation running. Right-click to spawn cars. Stop simulation to edit grid.";
+            StatusText.Text = "Simulation running. Right-click to spawn cars.";
         }
         else if (_isNetworkBuilt)
         {
-            StatusText.Text = "Network built. Click 'Start Simulation' to begin. Left-click: draw roads.";
+            StatusText.Text = "Network built. Click ▶ Start to begin, or return to editing.";
         }
         else
         {
-            StatusText.Text = "Draw roads with left-click, then build network to start simulation.";
+            StatusText.Text = "Draw roads with left-click, then build network to start.";
         }
     }
     
@@ -188,8 +200,14 @@ public partial class MainWindow
     
     private void RenderLoop(object? sender, EventArgs e)
     {
+        if (e is RenderingEventArgs args)
+        {
+            if (args.RenderingTime == _lastRenderTime) return;
+            _lastRenderTime = args.RenderingTime;
+        }
+
         var pixelsPerMeter = _gridManager.GetPixelsPerMeter();
-        
+
         _trafficManager.GetRenderData(_renderBuffer);
         _carRenderer.UpdateAllCarVisuals(_renderBuffer, pixelsPerMeter);
         CarCountText.Text = _renderBuffer.Count.ToString();
@@ -197,6 +215,16 @@ public partial class MainWindow
         if (_isNetworkBuilt)
         {
             NetworkInfoText.Text = _trafficManager.GetNetworkInfo();
+        }
+
+        _frameCount++;
+        var elapsed = _fpsStopwatch.Elapsed.TotalSeconds;
+        if (elapsed >= 0.5)
+        {
+            _fps = _frameCount / elapsed;
+            _frameCount = 0;
+            _fpsStopwatch.Restart();
+            FpsText.Text = $"FPS: {_fps:F0}";
         }
     }
 
@@ -220,7 +248,8 @@ public partial class MainWindow
             _trafficManager.ClearNetwork();
             _trafficManager.ClearTraffic();
             _carRenderer.ClearAllVisuals();
-            
+            ClearJunctionSelection();
+
             _isNetworkBuilt = false;
             NetworkInfoText.Text = "Network not built";
             
@@ -250,7 +279,7 @@ public partial class MainWindow
         try
         {
             var success = BuildNetworkFromGrid(_gridManager.GridWidth, _gridManager.GridHeight);
-            
+
             if (success)
             {
                 _isNetworkBuilt = true;
@@ -263,7 +292,8 @@ public partial class MainWindow
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 _isNetworkBuilt = true;
             }
-            
+
+            _gridManager.SetGiveWayNodes(_trafficManager.GetGiveWayNodePositions());
             UpdateUiState();
         }
         catch (Exception ex)
@@ -312,19 +342,38 @@ public partial class MainWindow
         UpdateUiState();
         await StopPhysicsThreadAsync();
     }
+
+    private async void BtnReturnToEditing_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isSimulationRunning)
+        {
+            _isSimulationRunning = false;
+            await StopPhysicsThreadAsync();
+            _trafficManager.ClearTraffic();
+            _carRenderer.ClearAllVisuals();
+        }
+
+        _isNetworkBuilt = false;
+        _trafficManager.ClearNetwork();
+        _gridManager.ClearGiveWayNodes();
+        NetworkInfoText.Text = "Network not built";
+        UpdateUiState();
+    }
     
     private void BtnClear_Click(object sender, RoutedEventArgs e)
     {
         if (!_gridManager.HasGrid()) return;
 
         _gridManager.ClearAllCells();
+        _gridManager.ClearGiveWayNodes();
         _trafficManager.ClearNetwork();
         _trafficManager.ClearTraffic();
         _carRenderer.ClearAllVisuals();
-        
+        ClearJunctionSelection();
+
         _isNetworkBuilt = false;
         NetworkInfoText.Text = "Network not built";
-        
+
         UpdateUiState();
     }
 
@@ -399,12 +448,30 @@ public partial class MainWindow
         var cell = _gridManager.GetCellFromPixel(position.X, position.Y);
         if (cell == null) return;
 
+        if (GetSelectedCellType() == CellType.Intersection)
+        {
+            if (cell.Type != CellType.Intersection)
+                _gridManager.SetCellTypeAndDirection(cell.X, cell.Y, CellType.Intersection, TrafficDirection.None);
+            SelectJunctionCell(cell);
+            return;
+        }
+
         var selectedDirection = GetSelectedDirection();
 
-        if (cell.Type == CellType.Empty)
-            _gridManager.SetCellTypeAndDirection(cell.X, cell.Y, CellType.Road, selectedDirection);
-        else if (cell.Type == CellType.Road)
-            _gridManager.SetCellDirection(cell.X, cell.Y, selectedDirection);
+        switch (cell.Type)
+        {
+            case CellType.Empty or CellType.Intersection:
+                _gridManager.SetCellTypeAndDirection(cell.X, cell.Y, CellType.Road, selectedDirection);
+                break;
+            case CellType.Road:
+                _gridManager.SetCellDirection(cell.X, cell.Y, selectedDirection);
+                break;
+        }
+    }
+
+    private CellType GetSelectedCellType()
+    {
+        return RbIntersection.IsChecked == true ? CellType.Intersection : CellType.Road;
     }
 
     private void EraseAtPosition(Point position)
@@ -414,7 +481,11 @@ public partial class MainWindow
         var cell = _gridManager.GetCellFromPixel(position.X, position.Y);
 
         if (cell?.Type is CellType.Road or CellType.Intersection)
+        {
+            if (cell == _selectedJunctionCell)
+                ClearJunctionSelection();
             _gridManager.SetCellTypeAndDirection(cell.X, cell.Y, CellType.Empty, TrafficDirection.None);
+        }
     }
 
     private TrafficDirection GetSelectedDirection()
@@ -423,6 +494,47 @@ public partial class MainWindow
         if (RbEast.IsChecked == true) return TrafficDirection.East;
         if (RbSouth.IsChecked == true) return TrafficDirection.South;
         return RbWest.IsChecked == true ? TrafficDirection.West : TrafficDirection.East;
+    }
+
+    private void SelectJunctionCell(Cell cell)
+    {
+        _selectedJunctionCell = cell;
+        TxtSelectedJunction.Text = $"({cell.X}, {cell.Y})";
+
+        _updatingGiveWayCheckboxes = true;
+        ChkGiveWayNorth.IsChecked = cell.GiveWayDirections.Contains(TrafficDirection.North);
+        ChkGiveWayEast.IsChecked  = cell.GiveWayDirections.Contains(TrafficDirection.East);
+        ChkGiveWaySouth.IsChecked = cell.GiveWayDirections.Contains(TrafficDirection.South);
+        ChkGiveWayWest.IsChecked  = cell.GiveWayDirections.Contains(TrafficDirection.West);
+        _updatingGiveWayCheckboxes = false;
+    }
+
+    private void GiveWayCheckbox_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_updatingGiveWayCheckboxes || _selectedJunctionCell == null) return;
+        UpdateGiveWayDirection(TrafficDirection.North, ChkGiveWayNorth.IsChecked == true);
+        UpdateGiveWayDirection(TrafficDirection.East,  ChkGiveWayEast.IsChecked  == true);
+        UpdateGiveWayDirection(TrafficDirection.South, ChkGiveWaySouth.IsChecked == true);
+        UpdateGiveWayDirection(TrafficDirection.West,  ChkGiveWayWest.IsChecked  == true);
+    }
+
+    private void UpdateGiveWayDirection(TrafficDirection dir, bool active)
+    {
+        if (_selectedJunctionCell == null) return;
+        if (active) _selectedJunctionCell.GiveWayDirections.Add(dir);
+        else _selectedJunctionCell.GiveWayDirections.Remove(dir);
+    }
+
+    private void ClearJunctionSelection()
+    {
+        _selectedJunctionCell = null;
+        TxtSelectedJunction.Text = "(none — click a junction)";
+        _updatingGiveWayCheckboxes = true;
+        ChkGiveWayNorth.IsChecked = false;
+        ChkGiveWayEast.IsChecked  = false;
+        ChkGiveWaySouth.IsChecked = false;
+        ChkGiveWayWest.IsChecked  = false;
+        _updatingGiveWayCheckboxes = false;
     }
     
     protected override async void OnClosing(System.ComponentModel.CancelEventArgs e)
@@ -441,7 +553,7 @@ public partial class MainWindow
         // Defer the close to await the physics task without blocking the UI thread.
         _isClosing = true;
 
-        _renderTimer.Stop();
+        CompositionTarget.Rendering -= RenderLoop;
         if (_isSimulationRunning)
             await StopPhysicsThreadAsync();
 

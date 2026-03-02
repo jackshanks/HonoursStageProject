@@ -8,7 +8,9 @@ public class Cell(int x, int y, double cellSizeMeters = 4.0)
     public double RealWorldY { get; } = y * cellSizeMeters; // Y position in meters
     public CellType Type { get; private set; } = CellType.Empty;
     public TrafficDirection Direction { get; private set; } = TrafficDirection.None;
-    
+    public JunctionType JunctionType { get; set; } = JunctionType.GiveWay;
+    public HashSet<TrafficDirection> GiveWayDirections { get; } = [];
+
     public void SetTypeAndDirection(CellType type, TrafficDirection direction)
     {
         if (Type == type && Direction == direction) return;

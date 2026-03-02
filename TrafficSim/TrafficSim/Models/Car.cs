@@ -154,29 +154,6 @@ public class Car
             curr = next;
         }
     }
-    
-    public double GetDistanceTo(Car other)
-    {
-        if (CurrentLane == null || other.CurrentLane == null)
-            return double.MaxValue;
-        
-        var pathAhead = GetCachedPathAhead();
-        
-        foreach (var (lane, startDistance, _) in pathAhead)
-        {
-            if (lane.Id != other.CurrentLane.Id) continue;
-            var startOffset = startDistance == 0 ? LanePosition : 0.0;
-            var distanceAlongLane = (other.LanePosition - startOffset) * lane.Length;
-            var totalDistance = startDistance + distanceAlongLane;
-            
-            if (totalDistance > 0)
-            {
-                return totalDistance;
-            }
-        }
-
-        return double.MaxValue;
-    }
 }
 
 public enum CarColor

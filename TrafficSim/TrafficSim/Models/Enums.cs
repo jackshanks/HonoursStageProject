@@ -22,3 +22,10 @@ public enum TrafficDirection
     South,
     West
 }
+
+public enum JunctionType
+{
+    GiveWay,
+    Stop,
+    TrafficLight
+}

@@ -19,9 +19,12 @@ public class GridRenderer
     private readonly Point[] _arrowPointsSouth = new Point[3];
     private readonly Point[] _arrowPointsWest = new Point[3];
 
-    // Frozen pen objects to avoid new objects every render call 
-    private static readonly Pen GridLinePen = MakeFrozenPen(Brushes.LightGray, 0.3);
-    private static readonly Pen ArrowPen    = MakeFrozenPen(Brushes.Black, 1);
+    private readonly HashSet<(int, int)> _giveWayNodes = [];
+
+    // Frozen pen objects to avoid new objects every render call
+    private static readonly Pen GridLinePen  = MakeFrozenPen(Brushes.LightGray, 0.3);
+    private static readonly Pen ArrowPen     = MakeFrozenPen(Brushes.Black, 1);
+    private static readonly Pen GiveWayPen   = MakeFrozenPen(Brushes.Red, 1.5);
 
     private static Pen MakeFrozenPen(Brush brush, double thickness)
     {
@@ -114,9 +117,49 @@ public class GridRenderer
                 {
                     DrawArrow(renderOpen, cell, x, y, arrowBrush, ArrowPen);
                 }
-                
+
+                if (_giveWayNodes.Contains((x, y)))
+                {
+                    DrawGiveWayTriangle(renderOpen, x, y);
+                }
             }
         }
+    }
+
+    public void SetGiveWayNodes(IEnumerable<(int gridX, int gridY)> nodes)
+    {
+        _giveWayNodes.Clear();
+        foreach (var pos in nodes) _giveWayNodes.Add(pos);
+        RenderGrid();
+    }
+
+    public void ClearGiveWayNodes()
+    {
+        _giveWayNodes.Clear();
+        RenderGrid();
+    }
+
+    private void DrawGiveWayTriangle(DrawingContext dc, int gridX, int gridY)
+    {
+        var offsetX = gridX * _cellSizePixels;
+        var offsetY = gridY * _cellSizePixels;
+        var cx = offsetX + _cellSizePixels / 2;
+        var cy = offsetY + _cellSizePixels / 2;
+        var half = _cellSizePixels * 0.22;
+        
+        var p0 = new Point(cx - half, cy - half * 0.6); // top-left
+        var p1 = new Point(cx + half, cy - half * 0.6); // top-right
+        var p2 = new Point(cx,        cy + half); // bottom point
+
+        var geo = new StreamGeometry();
+        using (var ctx = geo.Open())
+        {
+            ctx.BeginFigure(p0, isFilled: true, isClosed: true);
+            ctx.LineTo(p1, isStroked: true, isSmoothJoin: false);
+            ctx.LineTo(p2, isStroked: true, isSmoothJoin: false);
+        }
+        geo.Freeze();
+        dc.DrawGeometry(Brushes.White, GiveWayPen, geo);
     }
     
     private void DrawArrow(DrawingContext dc, Cell cell, int gridX, int gridY, Brush fill, Pen stroke)
