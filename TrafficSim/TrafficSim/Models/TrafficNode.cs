@@ -20,9 +20,10 @@ public class TrafficNode(double x, double y, int gridX, int gridY)
     // Approach nodes that have priority over this node
     public List<TrafficNode> PriorityNodes { get; } = [];
 
-    // TODO: pathfinding, currently picks a random outgoing lane
+    // Fallback in case A* fails to find a path
     public Lane? GetNextLane()
     {
+        Console.WriteLine($"Node {Id} has failed A* pathfinding, choosing random lane.");
         return OutgoingLanes.Count == 0 ? null : OutgoingLanes[Random.Shared.Next(OutgoingLanes.Count)];
     }
 }

@@ -24,8 +24,13 @@ public class Car
     private readonly List<Lane> _cachedLaneSequence = [];
     private readonly List<(Lane lane, double distanceToStart, double distanceToEnd)> _cachedPathAheadResult = [];
 
+    // Path of lanes from spawn to exit
+    private readonly List<Lane>? _route;
+    // Next lane to move to
+    private int _routeIndex;
+    public TrafficNode? Destination { get; }
 
-    public Car(Lane startLane, double speed, CarColor color, SimulationConfig config, double startPosition = 0.0)
+    public Car(Lane startLane, double speed, CarColor color, SimulationConfig config, double startPosition = 0.0, List<Lane>? route = null, TrafficNode? destination = null)
     {
         CurrentLane = startLane;
         LanePosition = Math.Clamp(startPosition, 0.0, 1.0);
@@ -33,6 +38,9 @@ public class Car
         MaxSpeed = speed;
         Color = color;
         _config = config;
+        _route = route;
+        _routeIndex = 1;
+        Destination = destination;
 
         var pos = startLane.GetPositionAt(LanePosition);
         X = pos.X;
@@ -54,8 +62,8 @@ public class Car
         
         if (LanePosition >= 1.0)
         {
-            // If fully out of lane continue to next lane
-            var nextLane = CurrentLane.EndNode.GetNextLane();
+            // If fully out of lane continue to next lane, using the route if available
+            var nextLane = _route != null ? GetNextRouteLane() : CurrentLane.EndNode.GetNextLane();
             
             if (nextLane == null)
             {
@@ -138,20 +146,43 @@ public class Car
         return _cachedPathAheadResult;
     }
 
+    // Returns the next lane in the route and increments the index
+    private Lane? GetNextRouteLane()
+    {
+        if (_route == null || _routeIndex >= _route.Count)
+        {
+            return null;
+        }
+        return _route[_routeIndex++];
+    }
+
     private void BuildLaneSequence(double maxDist)
     {
         _cachedLaneSequence.Clear();
         if (CurrentLane == null) return;
         var accumulated = (1.0 - LanePosition) * CurrentLane.Length;
-        var curr = CurrentLane;
 
-        while (accumulated < maxDist)
+        if (_route != null)
         {
-            var next = curr.EndNode.GetNextLane();
-            if (next == null) break;
-            _cachedLaneSequence.Add(next);
-            accumulated += next.Length;
-            curr = next;
+            for (var i = _routeIndex; i < _route.Count && accumulated < maxDist; i++)
+            {
+                _cachedLaneSequence.Add(_route[i]);
+                accumulated += _route[i].Length;
+            }
+        }
+        else
+        {
+            // Fallback to random if there isn't a route
+            var curr = CurrentLane;
+            
+            while (accumulated < maxDist)
+            {
+                var next = curr.EndNode.GetNextLane();
+                if (next == null) break;
+                _cachedLaneSequence.Add(next);
+                accumulated += next.Length;
+                curr = next;
+            }
         }
     }
 }

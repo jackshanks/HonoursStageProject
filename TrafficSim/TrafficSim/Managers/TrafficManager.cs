@@ -1,4 +1,5 @@
 using TrafficSim.Models;
+using TrafficSim.Utility;
 
 namespace TrafficSim.Managers;
 
@@ -20,6 +21,11 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
     private readonly Dictionary<Guid, double> _spawnTimers = new();
 
     private readonly Random _random = new();
+    
+    private List<TrafficNode> _exitNodesCache = [];
+    private Dictionary<Guid, double> _exitNodeWeights = new();
+    // Map of spawn node ID to list of exit nodes reachable from that spawn (ensures disconnected networks don't break)
+    private Dictionary<Guid, List<TrafficNode>> _reachableExits = new();
     
     /// <summary>
     /// Builds the network from the grid
@@ -43,6 +49,16 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
             {
                 _spawnTimers[node.Id] = 0.0; 
             }
+
+            // Cache exit nodes and check reachability
+            _exitNodesCache = _laneNetwork.ExitNodes.ToList();
+            _exitNodeWeights.Clear();
+            foreach (var exit in _exitNodesCache)
+            {
+                _exitNodeWeights[exit.Id] = 1.0;
+            }
+
+            _reachableExits = Pathfinder.CheckReachability( _laneNetwork.SpawnNodes, _exitNodesCache);
 
             return NetworkManager.ValidateNetwork(_laneNetwork);
         }
@@ -324,16 +340,64 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
     }
 
     /// <summary>
-    /// Attempts to spawn a car at the given node.
+    /// Selects a weighted-random destination from the reachable exit nodes for a given spawn node
     /// </summary>
+    /// <param name="spawnNode">The node the car is spawning at</param>
+    /// <returns>A reachable exit node</returns>
+    private TrafficNode? SelectDestination(TrafficNode spawnNode)
+    {
+        if (!_reachableExits.TryGetValue(spawnNode.Id, out var reachable) || reachable.Count == 0)
+        {
+            return null;
+        }
+        
+        // Sum all weights for the reachable exits
+        var totalWeight = 0.0;
+        foreach (var exit in reachable)
+        {
+            totalWeight += _exitNodeWeights.GetValueOrDefault(exit.Id, 1.0); // Default to 1 if no exit weight is actually found
+        }
+
+        // Returns a random number between 0 and 1 and multiplies by the total weight, effectively returning a value between 0 and the total weight
+        var number = _random.NextDouble() * totalWeight;
+        var cumulative = 0.0;
+        foreach (var exit in reachable)
+        {
+            // Each weight in the list is added together one by one until the random number is reached and that lane is selected
+            cumulative += _exitNodeWeights.GetValueOrDefault(exit.Id, 1.0);
+            if (number < cumulative)
+                return exit;
+        }
+
+        return reachable[^1]; // returns last item to prevent any errors
+    }
+
+    /// <summary>
+    /// Attempts to spawn a car at the given node with a destination
+    /// </summary>
+    /// <param name="node">The node to spawn the car at</param>
+    /// <returns>If the car was successfully spawned</returns>
     private bool TrySpawnAtNode(TrafficNode node)
     {
         if (node.OutgoingLanes.Count == 0)
         {
             return false;
         }
+
+        // Pick a weighted-random destination and calculate the route to it
+        var destination = SelectDestination(node);
+        if (destination == null)
+        {
+            return false;
+        }
+
+        var route = Pathfinder.FindPath(node, destination);
+        if (route == null || route.Count == 0)
+        {
+            return false;
+        }
         
-        var lane = node.OutgoingLanes[_random.Next(node.OutgoingLanes.Count)];
+        var lane = route[0];
 
         // Check if there is a car too close
         if (_carsPerLane.TryGetValue(lane.Id, out var carsOnLane))
@@ -352,7 +416,7 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
         var colors = Enum.GetValues<CarColor>();
         var color = colors[_random.Next(colors.Length)];
 
-        var car = new Car(lane, speed, color, _config, startPosition: 0.0);
+        var car = new Car(lane, speed, color, _config, 0.0, route, destination);
         _cars.Add(car);
         return true;
     }
@@ -379,6 +443,9 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
             ClearTraffic();
             _laneNetwork?.Clear();
             _laneNetwork = null;
+            _exitNodesCache.Clear();
+            _exitNodeWeights.Clear();
+            _reachableExits.Clear();
         }
     }
     
