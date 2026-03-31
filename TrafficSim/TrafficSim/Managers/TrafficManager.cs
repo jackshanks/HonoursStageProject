@@ -73,7 +73,9 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
         lock (_carsLock)
         {
             if (_laneNetwork == null)
+            {
                 return "Network not built";
+            }
             
             var stats = _laneNetwork.GetStats();
             return $"Nodes: {stats.nodeCount} | Lanes: {stats.laneCount} (Straight: {stats.straightLanes}, Curved: {stats.curvedLanes})";
@@ -90,7 +92,9 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
         lock (_carsLock)
         {
             if (_laneNetwork == null) 
+            {
                 return;
+            }
             
             // Used by cars to look up other near-by cars based on lanes
             UpdateSpatialIndex();
@@ -119,7 +123,10 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
             // Calculate if a new car should be spawned on the spawn nodes
             foreach (var node in _laneNetwork.SpawnNodes)
             {
-                if (!_spawnTimers.TryGetValue(node.Id, out var elapsed)) continue;
+                if (!_spawnTimers.TryGetValue(node.Id, out var elapsed))
+                {
+                    continue;
+                }
                 elapsed += deltaTime;
                 if (elapsed >= _config.SpawnInterval)
                 {
@@ -143,7 +150,10 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
 
         foreach (var car in _cars)
         {
-            if (car.CurrentLane == null) continue;
+            if (car.CurrentLane == null)
+            {
+                continue;
+            }
 
             if (!_carsPerLane.TryGetValue(car.CurrentLane.Id, out var carsOnLane))
             {
@@ -239,7 +249,9 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
     private (Car? car, double distance) FindCarAhead(Car car)
     {
         if (car.CurrentLane == null)
+        {
             return (null, double.MaxValue);
+        }
 
         // Get cached path for quicker calc
         var pathAhead = car.GetCachedPathAhead();
@@ -250,22 +262,32 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
         foreach (var (lane, startDistance, _) in pathAhead)
         {
             if (!_carsPerLane.TryGetValue(lane.Id, out var carsOnLane))
+            {
                 continue;
+            }
 
             foreach (var otherCar in carsOnLane)
             {
-                if (otherCar.Id == car.Id) continue;
+                if (otherCar.Id == car.Id)
+                {
+                    continue;
+                }
                 if (lane.Id == car.CurrentLane.Id)
                 {
                     if (otherCar.LanePosition <= car.LanePosition)
+                    {
                         continue;
+                    }
                 }
 
                 var startOffset = lane.Id == car.CurrentLane.Id ? car.LanePosition : 0.0;
                 var distanceAlongLane = (otherCar.LanePosition - startOffset) * lane.Length;
                 var totalDistance = startDistance + distanceAlongLane;
 
-                if (!(totalDistance > 0) || !(totalDistance < minDistance)) continue;
+                if (!(totalDistance > 0) || !(totalDistance < minDistance))
+                {
+                    continue;
+                }
                 minDistance = totalDistance;
                 closestCar = otherCar;
             }
@@ -285,12 +307,17 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
         {
             foreach (var lane in priorityNode.IncomingLanes)
             {
-                if (!_carsPerLane.TryGetValue(lane.Id, out var carsOnLane)) continue;
+                if (!_carsPerLane.TryGetValue(lane.Id, out var carsOnLane))
+                {
+                    continue;
+                }
                 foreach (var car in carsOnLane)
                 {
                     var distToNode = (1.0 - car.LanePosition) * lane.Length;
                     if (distToNode < _config.ConflictCheckDistance)
+                    {
                         return true;
+                    }
                 }
             }
         }
@@ -305,7 +332,10 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
     {
         lock (_carsLock)
         {
-            if (_laneNetwork == null) return [];
+            if (_laneNetwork == null)
+            {
+                return [];
+            }
             return _laneNetwork.Nodes
                 .Where(n => n.IsGiveWay)
                 .Select(n => (n.GridX, n.GridY))
@@ -366,7 +396,9 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
             // Each weight in the list is added together one by one until the random number is reached and that lane is selected
             cumulative += _exitNodeWeights.GetValueOrDefault(exit.Id, 1.0);
             if (number < cumulative)
+            {
                 return exit;
+            }
         }
 
         return reachable[^1]; // returns last item to prevent any errors
@@ -412,11 +444,12 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
             }
         }
 
-        var speed = 10.0 + _random.NextDouble() * 10.0;
+        const double fiveMphInMps = 5.0 * 0.44704;
+        var speedOffset = (_random.NextDouble() * 2.0 - 1.0) * fiveMphInMps;
         var colors = Enum.GetValues<CarColor>();
         var color = colors[_random.Next(colors.Length)];
 
-        var car = new Car(lane, speed, color, _config, 0.0, route, destination);
+        var car = new Car(lane, speedOffset, color, _config, 0.0, route, destination);
         _cars.Add(car);
         return true;
     }

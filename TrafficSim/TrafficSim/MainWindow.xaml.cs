@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using TrafficSim.Managers;
@@ -165,9 +166,13 @@ public partial class MainWindow
                     {
                         var remainingMs = (int)(remaining * 1000 / Stopwatch.Frequency);
                         if (remainingMs > 1)
+                        {
                             await Task.Delay(remainingMs, token);
+                        }
                         else
+                        {
                             await Task.Yield();
+                        }
                     }
                     else
                     {
@@ -202,7 +207,10 @@ public partial class MainWindow
     {
         if (e is RenderingEventArgs args)
         {
-            if (args.RenderingTime == _lastRenderTime) return;
+            if (args.RenderingTime == _lastRenderTime)
+            {
+                return;
+            }
             _lastRenderTime = args.RenderingTime;
         }
 
@@ -235,7 +243,9 @@ public partial class MainWindow
         var cellSize = double.Parse(TxtCellSize.Text);
 
         if (width <= 0 || height <= 0 || cellSize <= 0)
+        {
             throw new ArgumentException("Please enter valid positive numbers.");
+        }
 
         _gridManager.CreateGrid(width, height, cellSize);
     }
@@ -362,7 +372,10 @@ public partial class MainWindow
     
     private void BtnClear_Click(object sender, RoutedEventArgs e)
     {
-        if (!_gridManager.HasGrid()) return;
+        if (!_gridManager.HasGrid())
+        {
+            return;
+        }
 
         _gridManager.ClearAllCells();
         _gridManager.ClearGiveWayNodes();
@@ -390,7 +403,10 @@ public partial class MainWindow
             return;
         }
 
-        if (!_gridManager.HasGrid() || _isSimulationRunning) return;
+        if (!_gridManager.HasGrid() || _isSimulationRunning)
+        {
+            return;
+        }
 
         _isErasing = true;
         _lastErasedCell = null;
@@ -399,7 +415,10 @@ public partial class MainWindow
 
     private void GridCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (!_gridManager.HasGrid() || _isSimulationRunning) return;
+        if (!_gridManager.HasGrid() || _isSimulationRunning)
+        {
+            return;
+        }
 
         _isDrawing = true;
         _lastDrawnCell = null;
@@ -408,7 +427,10 @@ public partial class MainWindow
 
     private void GridCanvas_MouseMove(object sender, MouseEventArgs e)
     {
-        if (!_gridManager.HasGrid()) return;
+        if (!_gridManager.HasGrid())
+        {
+            return;
+        }
 
         var position = e.GetPosition(GridCanvas);
         var cell = _gridManager.GetCellFromPixel(position.X, position.Y);
@@ -443,28 +465,40 @@ public partial class MainWindow
 
     private void DrawRoadAtPosition(Point position)
     {
-        if (_isSimulationRunning) return;
+        if (_isSimulationRunning)
+        {
+            return;
+        }
 
         var cell = _gridManager.GetCellFromPixel(position.X, position.Y);
-        if (cell == null) return;
+        if (cell == null)
+        {
+            return;
+        }
 
         if (GetSelectedCellType() == CellType.Intersection)
         {
             if (cell.Type != CellType.Intersection)
+            {
                 _gridManager.SetCellTypeAndDirection(cell.X, cell.Y, CellType.Intersection, TrafficDirection.None);
+            }
             SelectJunctionCell(cell);
             return;
         }
 
         var selectedDirection = GetSelectedDirection();
 
+        var speedLimit = GetSelectedSpeedLimit();
+
         switch (cell.Type)
         {
             case CellType.Empty or CellType.Intersection:
                 _gridManager.SetCellTypeAndDirection(cell.X, cell.Y, CellType.Road, selectedDirection);
+                _gridManager.SetCellSpeedLimit(cell.X, cell.Y, speedLimit);
                 break;
             case CellType.Road:
                 _gridManager.SetCellDirection(cell.X, cell.Y, selectedDirection);
+                _gridManager.SetCellSpeedLimit(cell.X, cell.Y, speedLimit);
                 break;
         }
     }
@@ -474,9 +508,24 @@ public partial class MainWindow
         return RbIntersection.IsChecked == true ? CellType.Intersection : CellType.Road;
     }
 
+    private int GetSelectedSpeedLimit()
+    {
+        foreach (var rb in new[] { RbSpeed20, RbSpeed30, RbSpeed40, RbSpeed50, RbSpeed60, RbSpeed70 })
+        {
+            if (rb.IsChecked == true && rb.Tag is string tag && int.TryParse(tag, out var mph))
+            {
+                return mph;
+            }
+        }
+        return 30;
+    }
+
     private void EraseAtPosition(Point position)
     {
-        if (_isSimulationRunning) return;
+        if (_isSimulationRunning)
+        {
+            return;
+        }
 
         var cell = _gridManager.GetCellFromPixel(position.X, position.Y);
 
@@ -490,9 +539,18 @@ public partial class MainWindow
 
     private TrafficDirection GetSelectedDirection()
     {
-        if (RbNorth.IsChecked == true) return TrafficDirection.North;
-        if (RbEast.IsChecked == true) return TrafficDirection.East;
-        if (RbSouth.IsChecked == true) return TrafficDirection.South;
+        if (RbNorth.IsChecked == true)
+        {
+            return TrafficDirection.North;
+        }
+        if (RbEast.IsChecked == true)
+        {
+            return TrafficDirection.East;
+        }
+        if (RbSouth.IsChecked == true)
+        {
+            return TrafficDirection.South;
+        }
         return RbWest.IsChecked == true ? TrafficDirection.West : TrafficDirection.East;
     }
 
@@ -511,7 +569,10 @@ public partial class MainWindow
 
     private void GiveWayCheckbox_Changed(object sender, RoutedEventArgs e)
     {
-        if (_updatingGiveWayCheckboxes || _selectedJunctionCell == null) return;
+        if (_updatingGiveWayCheckboxes || _selectedJunctionCell == null)
+        {
+            return;
+        }
         UpdateGiveWayDirection(TrafficDirection.North, ChkGiveWayNorth.IsChecked == true);
         UpdateGiveWayDirection(TrafficDirection.East,  ChkGiveWayEast.IsChecked  == true);
         UpdateGiveWayDirection(TrafficDirection.South, ChkGiveWaySouth.IsChecked == true);
@@ -520,9 +581,18 @@ public partial class MainWindow
 
     private void UpdateGiveWayDirection(TrafficDirection dir, bool active)
     {
-        if (_selectedJunctionCell == null) return;
-        if (active) _selectedJunctionCell.GiveWayDirections.Add(dir);
-        else _selectedJunctionCell.GiveWayDirections.Remove(dir);
+        if (_selectedJunctionCell == null)
+        {
+            return;
+        }
+        if (active)
+        {
+            _selectedJunctionCell.GiveWayDirections.Add(dir);
+        }
+        else
+        {
+            _selectedJunctionCell.GiveWayDirections.Remove(dir);
+        }
     }
 
     private void ClearJunctionSelection()
@@ -548,14 +618,19 @@ public partial class MainWindow
 
         // Cancel any re-entrant close events while async cleanup is in progress.
         e.Cancel = true;
-        if (_isClosing) return;
+        if (_isClosing)
+        {
+            return;
+        }
 
         // Defer the close to await the physics task without blocking the UI thread.
         _isClosing = true;
 
         CompositionTarget.Rendering -= RenderLoop;
         if (_isSimulationRunning)
+        {
             await StopPhysicsThreadAsync();
+        }
 
         _closeReady = true;
         Dispatcher.BeginInvoke(new Action(Close));

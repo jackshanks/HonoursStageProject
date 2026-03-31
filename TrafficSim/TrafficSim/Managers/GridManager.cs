@@ -118,7 +118,10 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
         _gridLock.EnterReadLock();
         try
         {
-            if (CellSizeMeters <= 0) return 1;
+            if (CellSizeMeters <= 0)
+            {
+                return 1;
+            }
             return CellSizePixels / CellSizeMeters;
         }
         finally
@@ -139,8 +142,10 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
         try
         {
             var cell = GetCell(x, y);
-            if (cell == null) return;
-            
+            if (cell == null)
+            {
+                return;
+            }
             cell.SetDirection(direction);
             _renderer.RenderGrid();
         }
@@ -150,6 +155,26 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
         }
     }
     
+    /// <summary>
+    /// Sets the cell speed limit
+    /// </summary>
+    /// <param name="x">x coord of the cell</param>
+    /// <param name="y">y coord of the cell</param>
+    /// <param name="speedLimitMph">Speed limit in Mph</param>
+    public void SetCellSpeedLimit(int x, int y, int speedLimitMph)
+    {
+        _gridLock.EnterWriteLock();
+        try
+        {
+            var cell = GetCell(x, y);
+            cell?.SetSpeedLimit(speedLimitMph);
+        }
+        finally
+        {
+            _gridLock.ExitWriteLock();
+        }
+    }
+
     /// <summary>
     /// Sets the cell's type and direction
     /// </summary>
@@ -163,8 +188,10 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
         try
         {
             var cell = GetCell(x, y);
-            if (cell == null) return;
-            
+            if (cell == null)
+            {
+                return;
+            }
             cell.SetTypeAndDirection(type, direction);
             _renderer.RenderGrid();
         }
@@ -182,7 +209,10 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
         _gridLock.EnterWriteLock();
         try
         {
-            if (_grid == null) return;
+            if (_grid == null)
+            {
+                return;
+            }
 
             for (var x = 0; x < GridWidth; x++)
             {
@@ -240,7 +270,10 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
     /// <returns></returns>
     public static string GetCellInfo(Cell? cell)
     {
-        if (cell == null) return "Error: Cell not found";
+        if (cell == null)
+        {
+            return "Error: Cell not found";
+        }
             
         var directionText = cell.Direction != TrafficDirection.None ? $" | Direction: {cell.Direction}" : "";
         return $"Grid: ({cell.X}, {cell.Y}) | Position: ({cell.RealWorldX:F1}m, {cell.RealWorldY:F1}m) | Type: {cell.Type}{directionText}";

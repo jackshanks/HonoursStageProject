@@ -17,19 +17,21 @@ public class Lane
     
     public TrafficDirection StartDirection { get; }
     public TrafficDirection EndDirection { get; }
+    public double SpeedLimitMps { get; }
     
     private readonly Point _startPoint;
     private readonly Point _endPoint;
     // Chached direction so isn't calculated on fly for simple node to node
     private readonly (double dx, double dy) _straightDirection;
 
-    public Lane(TrafficNode startNode, TrafficNode endNode, TrafficDirection startDirection, TrafficDirection endDirection)
+    public Lane(TrafficNode startNode, TrafficNode endNode, TrafficDirection startDirection, TrafficDirection endDirection, double speedLimitMps = 30 * 0.44704) //conversion to mps from 30 mph
     {
         Id = Guid.NewGuid();
         StartNode = startNode;
         EndNode = endNode;
         StartDirection = startDirection;
         EndDirection = endDirection;
+        SpeedLimitMps = speedLimitMps;
 
         _startPoint = new Point(startNode.X, startNode.Y);
         _endPoint = new Point(endNode.X, endNode.Y);
@@ -88,7 +90,9 @@ public class Lane
         t = Math.Clamp(t, 0.0, 1.0);
         
         if (Type == LaneType.Straight)
+        {
             return _straightDirection;
+        }
         
         // quadratic bezier B'(t) = 2(1-t)(P1-P0) + 2t(P2-P1) - lots of math
         var oneMinusT = 1.0 - t;

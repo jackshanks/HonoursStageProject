@@ -8,6 +8,7 @@ namespace TrafficSim.Managers;
 /// </summary>
 public static class NetworkManager
 {
+    private const double MphToMps = 0.44704;
     /// <summary>
     /// Builds the network from the grid of cells
     /// </summary>
@@ -28,8 +29,9 @@ public static class NetworkManager
                 var cell = grid[x, y];
                 
                 if (cell.Type != CellType.Road || cell.Direction == TrafficDirection.None)
+                {
                     continue;
-                
+                }
                 var centerX = cell.RealWorldX + cellSizeMeters / 2.0;
                 var centerY = cell.RealWorldY + cellSizeMeters / 2.0;
                 
@@ -48,32 +50,39 @@ public static class NetworkManager
                 var cell = grid[x, y];
                 
                 if (cell.Type != CellType.Road || cell.Direction == TrafficDirection.None)
+                {
                     continue;
-                
+                }
                 if (!nodeMap.TryGetValue((x, y), out var currentNode))
+                {
                     continue;
-                
+                }
                 var (neighborX, neighborY) = GetNeighborCoords(x, y, cell.Direction);
-                
                 if (neighborX < 0 || neighborX >= width || neighborY < 0 || neighborY >= height)
+                {
                     continue;
-                
+                }
                 var neighborCell = grid[neighborX, neighborY];
                 
                 if (neighborCell.Type != CellType.Road || neighborCell.Direction == TrafficDirection.None)
+                {
                     continue;
-                
+                }
                 if (!CanConnect(cell.Direction, neighborCell.Direction))
+                {
                     continue;
-                
+                }
                 if (!nodeMap.TryGetValue((neighborX, neighborY), out var neighborNode))
+                {
                     continue;
+                }
                 
                 var lane = new Lane(
                     currentNode, 
                     neighborNode, 
                     cell.Direction, 
-                    neighborCell.Direction
+                    neighborCell.Direction,
+                    cell.SpeedLimitMph * MphToMps
                 );
                 
                 network.AddLane(lane);
@@ -86,9 +95,13 @@ public static class NetworkManager
         {
             // Sets spawn and exit nodes for spawning and exiting cars
             if (node.IncomingLanes.Count == 0)
+            {
                 node.Enums = Enums.Spawn;
+            }
             else if (node.OutgoingLanes.Count == 0)
+            {
                 node.Enums = Enums.Exit;
+            }
         }
 
         return network;
@@ -122,7 +135,9 @@ public static class NetworkManager
     private static bool CanConnect(TrafficDirection fromDirection, TrafficDirection toDirection)
     {
         if (fromDirection == toDirection)
+        {
             return true;
+        }
         
         return fromDirection switch
         {
@@ -219,7 +234,8 @@ public static class NetworkManager
                     }
 
                     // Adds a lane between each possible connection of approach and exit nodes in a junction
-                    var lane = new Lane(approachNode, exitNode, approachDir, exitDir);
+                    var approachSpeedMps = grid[approachNode.GridX, approachNode.GridY].SpeedLimitMph * MphToMps;
+                    var lane = new Lane(approachNode, exitNode, approachDir, exitDir, approachSpeedMps);
                     network.AddLane(lane);
                 }
             }
@@ -242,8 +258,14 @@ public static class NetworkManager
         {
             for (var y = 0; y < height; y++)
             {
-                if (grid[x, y].Type != CellType.Intersection) continue;
-                if (visited.Contains((x, y))) continue;
+                if (grid[x, y].Type != CellType.Intersection)
+                {
+                    continue;
+                }
+                if (visited.Contains((x, y)))
+                {
+                    continue;
+                }
 
                 var group = new HashSet<(int, int)>();
                 var queue = new Queue<(int, int)>();

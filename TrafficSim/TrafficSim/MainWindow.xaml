@@ -228,6 +228,38 @@
                                                  x:Name="RbSouth" Content="↓  S"
                                                  GroupName="Direction" Style="{StaticResource SegmentedRadio}"/>
                                 </Grid>
+                                <!-- Speed Limit -->
+                                <TextBlock Text="Speed Limit (mph)" Foreground="#666" FontSize="10" Margin="0,12,0,4"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="4"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <RadioButton Grid.Row="0" Grid.Column="0" x:Name="RbSpeed20" Content="20"
+                                                 GroupName="SpeedLimit" Tag="20"
+                                                 Style="{StaticResource SegmentedRadio}"/>
+                                    <RadioButton Grid.Row="0" Grid.Column="1" x:Name="RbSpeed30" Content="30"
+                                                 GroupName="SpeedLimit" Tag="30" IsChecked="True"
+                                                 Style="{StaticResource SegmentedRadio}"/>
+                                    <RadioButton Grid.Row="0" Grid.Column="2" x:Name="RbSpeed40" Content="40"
+                                                 GroupName="SpeedLimit" Tag="40"
+                                                 Style="{StaticResource SegmentedRadio}"/>
+                                    <RadioButton Grid.Row="2" Grid.Column="0" x:Name="RbSpeed50" Content="50"
+                                                 GroupName="SpeedLimit" Tag="50"
+                                                 Style="{StaticResource SegmentedRadio}"/>
+                                    <RadioButton Grid.Row="2" Grid.Column="1" x:Name="RbSpeed60" Content="60"
+                                                 GroupName="SpeedLimit" Tag="60"
+                                                 Style="{StaticResource SegmentedRadio}"/>
+                                    <RadioButton Grid.Row="2" Grid.Column="2" x:Name="RbSpeed70" Content="70"
+                                                 GroupName="SpeedLimit" Tag="70"
+                                                 Style="{StaticResource SegmentedRadio}"/>
+                                </Grid>
                             </StackPanel>
 
                             <!-- Junction Type (Intersection only) -->

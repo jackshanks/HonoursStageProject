@@ -88,7 +88,10 @@ public class GridRenderer
 
     public void RenderGrid()
     {
-        if (_grid == null) return;
+        if (_grid == null)
+        {
+            return;
+        }
         
         using var renderOpen = _gridVisual.RenderOpen();
         
@@ -129,7 +132,10 @@ public class GridRenderer
     public void SetGiveWayNodes(IEnumerable<(int gridX, int gridY)> nodes)
     {
         _giveWayNodes.Clear();
-        foreach (var pos in nodes) _giveWayNodes.Add(pos);
+        foreach (var pos in nodes)
+        {
+            _giveWayNodes.Add(pos);
+        }
         RenderGrid();
     }
 
@@ -173,7 +179,10 @@ public class GridRenderer
             _ => null
         };
         
-        if (points == null) return;
+        if (points == null)
+        {
+            return;
+        }
         
         var offsetX = gridX * _cellSizePixels;
         var offsetY = gridY * _cellSizePixels;

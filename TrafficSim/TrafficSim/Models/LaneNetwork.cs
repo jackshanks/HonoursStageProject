@@ -44,8 +44,17 @@ public class LaneNetwork
         var curvedCount = 0;
         foreach (var lane in _lanes.Values)
         {
-            if (lane.Type == LaneType.Straight) straightCount++;
-            else if (lane.Type == LaneType.Curved) curvedCount++;
+            switch (lane.Type)
+            {
+                case LaneType.Straight:
+                    straightCount++;
+                    break;
+                case LaneType.Curved:
+                    curvedCount++;
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
+            }
         }
 
         return (_nodes.Count, _lanes.Count, straightCount, curvedCount);

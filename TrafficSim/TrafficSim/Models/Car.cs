@@ -7,7 +7,9 @@ public class Car
     public double X { get; private set; }
     public double Y { get; private set; }
     public double Speed { get; private set; }
-    public double MaxSpeed { get; }
+    public double SpeedOffsetMps { get; }
+    private readonly double _fallbackMaxSpeed;
+    public double MaxSpeed => CurrentLane != null ? Math.Max(CurrentLane.SpeedLimitMps + SpeedOffsetMps, 0) : _fallbackMaxSpeed;
     private readonly SimulationConfig _config;
 
     public CarColor Color { get; }
@@ -30,12 +32,13 @@ public class Car
     private int _routeIndex;
     public TrafficNode? Destination { get; }
 
-    public Car(Lane startLane, double speed, CarColor color, SimulationConfig config, double startPosition = 0.0, List<Lane>? route = null, TrafficNode? destination = null)
+    public Car(Lane startLane, double speedOffsetMps, CarColor color, SimulationConfig config, double startPosition = 0.0, List<Lane>? route = null, TrafficNode? destination = null)
     {
         CurrentLane = startLane;
         LanePosition = Math.Clamp(startPosition, 0.0, 1.0);
-        Speed = speed;
-        MaxSpeed = speed;
+        SpeedOffsetMps = speedOffsetMps;
+        _fallbackMaxSpeed = Math.Max(startLane.SpeedLimitMps + speedOffsetMps, 0);
+        Speed = _fallbackMaxSpeed;
         Color = color;
         _config = config;
         _route = route;
@@ -52,7 +55,9 @@ public class Car
     public bool Move(double deltaTime)
     {
         if (CurrentLane == null)
+        {
             return false;
+        }
         
         var distanceMeters = Speed * deltaTime;
         
@@ -159,7 +164,10 @@ public class Car
     private void BuildLaneSequence(double maxDist)
     {
         _cachedLaneSequence.Clear();
-        if (CurrentLane == null) return;
+        if (CurrentLane == null)
+        {
+            return;
+        }
         var accumulated = (1.0 - LanePosition) * CurrentLane.Length;
 
         if (_route != null)
