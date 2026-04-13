@@ -247,6 +247,37 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
     }
 
     /// <summary>
+    /// Returns all non-empty cells for JSON
+    /// </summary>
+    public List<Cell> GetAllNonEmptyCells()
+    {
+        _gridLock.EnterReadLock();
+        try
+        {
+            var cells = new List<Cell>();
+            if (_grid == null)
+            {
+                return cells;
+            }
+            for (var x = 0; x < GridWidth; x++)
+            {
+                for (var y = 0; y < GridHeight; y++)
+                {
+                    if (_grid[x, y].Type != CellType.Empty)
+                    {
+                        cells.Add(_grid[x, y]);
+                    }
+                }
+            }
+            return cells;
+        }
+        finally
+        {
+            _gridLock.ExitReadLock();
+        }
+    }
+
+    /// <summary>
     /// Checks if the grid has been created (Edge case as grid should be made on program run)
     /// </summary>
     /// <returns></returns>

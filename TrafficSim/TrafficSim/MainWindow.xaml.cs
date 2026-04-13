@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using Microsoft.Win32;
 using TrafficSim.Managers;
 using TrafficSim.Models;
 using TrafficSim.Rendering;
@@ -50,7 +51,7 @@ public partial class MainWindow
     private int _frameCount;
     private double _fps;
 
-    public MainWindow()
+    public MainWindow(GridData? initialGrid = null)
     {
         InitializeComponent();
         _gridManager = new GridManager(GridCanvas);
@@ -59,7 +60,17 @@ public partial class MainWindow
 
         try
         {
-            ParseAndCreateGrid();
+            if (initialGrid != null)
+            {
+                TxtGridWidth.Text = initialGrid.GridWidth.ToString();
+                TxtGridHeight.Text = initialGrid.GridHeight.ToString();
+                var cellSizePixels = double.Parse(TxtCellSize.Text);
+                GridSerialiser.ApplyToGrid(initialGrid, _gridManager, cellSizePixels);
+            }
+            else
+            {
+                ParseAndCreateGrid();
+            }
         }
         catch (Exception ex)
         {
@@ -100,6 +111,7 @@ public partial class MainWindow
         BtnBuildNetwork.IsEnabled = !_isSimulationRunning;
         BtnCreateGrid.IsEnabled = !_isSimulationRunning;
         BtnClear.IsEnabled = !_isSimulationRunning;
+        BtnLoad.IsEnabled = !_isSimulationRunning;
 
         SimRunControlsPanel.Visibility = _isNetworkBuilt ? Visibility.Visible : Visibility.Collapsed;
         BtnStartSim.IsEnabled = !_isSimulationRunning;
@@ -607,6 +619,89 @@ public partial class MainWindow
         _updatingGiveWayCheckboxes = false;
     }
     
+    private void BtnSave_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_gridManager.HasGrid()) return;
+
+        var dialog = new SaveFileDialog
+        {
+            Filter = "JSON files (*.json)|*.json",
+            DefaultExt = ".json",
+            Title = "Save Road Network"
+        };
+
+        if (dialog.ShowDialog() != true) return;
+
+        try
+        {
+            var data = GridSerialiser.ExtractGridData(_gridManager);
+            GridSerialiser.SaveToFile(data, dialog.FileName);
+            StatusText.Text = $"Network saved to {System.IO.Path.GetFileName(dialog.FileName)}";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error saving network: {ex.Message}", "Error",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void BtnLoad_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Filter = "JSON files (*.json)|*.json",
+            Title = "Load Road Network"
+        };
+
+        if (dialog.ShowDialog() != true) return;
+
+        try
+        {
+            if (_isSimulationRunning)
+            {
+                _isSimulationRunning = false;
+                await StopPhysicsThreadAsync();
+            }
+
+            var data = GridSerialiser.LoadFromFile(dialog.FileName);
+            TxtGridWidth.Text = data.GridWidth.ToString();
+            TxtGridHeight.Text = data.GridHeight.ToString();
+            var cellSizePixels = double.Parse(TxtCellSize.Text);
+            GridSerialiser.ApplyToGrid(data, _gridManager, cellSizePixels);
+
+            _trafficManager.ClearNetwork();
+            _trafficManager.ClearTraffic();
+            _carRenderer.ClearAllVisuals();
+            _gridManager.ClearGiveWayNodes();
+            ClearJunctionSelection();
+
+            _isNetworkBuilt = false;
+            NetworkInfoText.Text = "Network not built";
+            StatusText.Text = $"Loaded {System.IO.Path.GetFileName(dialog.FileName)}";
+            UpdateUiState();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error loading network: {ex.Message}", "Error",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void BtnMainMenu_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isSimulationRunning)
+        {
+            _isSimulationRunning = false;
+            await StopPhysicsThreadAsync();
+            _trafficManager.ClearTraffic();
+            _carRenderer.ClearAllVisuals();
+        }
+
+        var menu = new MainMenu();
+        menu.Show();
+        Close();
+    }
+
     protected override async void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
         if (_closeReady)
