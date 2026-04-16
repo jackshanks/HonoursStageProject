@@ -23,6 +23,12 @@ public record SimulationConfig
     public double GiveWayCheckDistance { get; init; } = 12.0;
     /// <summary>Gap (metres) within which another car is considered a conflict at a junction.</summary>
     public double ConflictCheckDistance { get; init; } = 20.0;
+    /// <summary>Seconds that a traffic light phase stays green.</summary>
+    public double TrafficLightGreenDuration { get; init; } = 20.0;
+    /// <summary>Seconds that a traffic light phase stays yellow.</summary>
+    public double TrafficLightYellowDuration { get; init; } = 3.0;
+    /// <summary>Seconds of all-red gap between phases.</summary>
+    public double TrafficLightAllRedDuration { get; init; } = 1.0;
 
     public static SimulationConfig Default { get; } = new();
 }

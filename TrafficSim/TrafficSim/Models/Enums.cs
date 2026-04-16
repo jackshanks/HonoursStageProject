@@ -29,3 +29,17 @@ public enum JunctionType
     Stop,
     TrafficLight
 }
+
+public enum TrafficLightPhase
+{
+    Green,
+    Yellow,
+    Red
+}
+
+public enum NodeKind
+{
+    Spawn,
+    Exit,
+    TrafficLight
+}

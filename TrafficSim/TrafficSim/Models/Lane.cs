@@ -18,6 +18,8 @@ public class Lane
     public TrafficDirection StartDirection { get; }
     public TrafficDirection EndDirection { get; }
     public double SpeedLimitMps { get; }
+
+    public List<Lane> ConflictingLanes { get; } = [];
     
     private readonly Point _startPoint;
     private readonly Point _endPoint;

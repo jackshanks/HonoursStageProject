@@ -20,6 +20,12 @@ public class TrafficNode(double x, double y, int gridX, int gridY)
     // Approach nodes that have priority over this node
     public List<TrafficNode> PriorityNodes { get; } = [];
 
+    // Traffic light controller for this node (null if not light-controlled)
+    public TrafficLightController? TrafficLight { get; set; }
+
+    // The direction this node approaches the junction from
+    public TrafficDirection ApproachDirection { get; set; } = TrafficDirection.None;
+
     // Fallback in case A* fails to find a path
     public Lane? GetNextLane()
     {

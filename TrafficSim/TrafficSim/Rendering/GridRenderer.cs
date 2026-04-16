@@ -20,11 +20,16 @@ public class GridRenderer
     private readonly Point[] _arrowPointsWest = new Point[3];
 
     private readonly HashSet<(int, int)> _giveWayNodes = [];
+    private readonly Dictionary<(int, int), TrafficLightPhase> _trafficLightNodes = new();
+    private readonly HashSet<(int, int)> _spawnNodes = [];
+    private readonly HashSet<(int, int)> _exitNodes = [];
+    private (int x, int y)? _selectedNode;
 
     // Frozen pen objects to avoid new objects every render call
-    private static readonly Pen GridLinePen  = MakeFrozenPen(Brushes.LightGray, 0.3);
-    private static readonly Pen ArrowPen     = MakeFrozenPen(Brushes.Black, 1);
-    private static readonly Pen GiveWayPen   = MakeFrozenPen(Brushes.Red, 1.5);
+    private static readonly Pen GridLinePen     = MakeFrozenPen(Brushes.LightGray, 0.3);
+    private static readonly Pen ArrowPen        = MakeFrozenPen(Brushes.Black, 1);
+    private static readonly Pen GiveWayPen      = MakeFrozenPen(Brushes.Red, 1.5);
+    private static readonly Pen SelectedNodePen = MakeFrozenPen(Brushes.Yellow, 2.0);
 
     private static Pen MakeFrozenPen(Brush brush, double thickness)
     {
@@ -125,6 +130,26 @@ public class GridRenderer
                 {
                     DrawGiveWayTriangle(renderOpen, x, y);
                 }
+
+                if (_trafficLightNodes.TryGetValue((x, y), out var lightPhase))
+                {
+                    DrawTrafficLight(renderOpen, x, y, lightPhase);
+                }
+
+                if (_spawnNodes.Contains((x, y)))
+                {
+                    DrawSpawnIndicator(renderOpen, x, y);
+                }
+
+                if (_exitNodes.Contains((x, y)))
+                {
+                    DrawExitIndicator(renderOpen, x, y);
+                }
+
+                if (_selectedNode.HasValue && _selectedNode.Value == (x, y))
+                {
+                    DrawSelectedHighlight(renderOpen, x, y);
+                }
             }
         }
     }
@@ -142,6 +167,66 @@ public class GridRenderer
     public void ClearGiveWayNodes()
     {
         _giveWayNodes.Clear();
+        RenderGrid();
+    }
+
+    public void SetTrafficLightNodes(List<(int gridX, int gridY, TrafficLightPhase phase)> nodes)
+    {
+        _trafficLightNodes.Clear();
+        foreach (var (gx, gy, phase) in nodes)
+        {
+            _trafficLightNodes[(gx, gy)] = phase;
+        }
+        RenderGrid();
+    }
+
+    public void ClearTrafficLightNodes()
+    {
+        _trafficLightNodes.Clear();
+        RenderGrid();
+    }
+
+    public void SetSpawnNodes(IEnumerable<(int gridX, int gridY)> nodes)
+    {
+        _spawnNodes.Clear();
+        foreach (var pos in nodes)
+        {
+            _spawnNodes.Add(pos);
+        }
+        RenderGrid();
+    }
+
+    public void ClearSpawnNodes()
+    {
+        _spawnNodes.Clear();
+        RenderGrid();
+    }
+
+    public void SetExitNodes(IEnumerable<(int gridX, int gridY)> nodes)
+    {
+        _exitNodes.Clear();
+        foreach (var pos in nodes)
+        {
+            _exitNodes.Add(pos);
+        }
+        RenderGrid();
+    }
+
+    public void ClearExitNodes()
+    {
+        _exitNodes.Clear();
+        RenderGrid();
+    }
+
+    public void SetSelectedNode(int gridX, int gridY)
+    {
+        _selectedNode = (gridX, gridY);
+        RenderGrid();
+    }
+
+    public void ClearSelectedNode()
+    {
+        _selectedNode = null;
         RenderGrid();
     }
 
@@ -168,6 +253,75 @@ public class GridRenderer
         dc.DrawGeometry(Brushes.White, GiveWayPen, geo);
     }
     
+    private void DrawTrafficLight(DrawingContext dc, int gridX, int gridY, TrafficLightPhase phase)
+    {
+        var cx = gridX * _cellSizePixels + _cellSizePixels / 2;
+        var cy = gridY * _cellSizePixels + _cellSizePixels / 2;
+        var radius = _cellSizePixels * 0.25;
+
+        var brush = phase switch
+        {
+            TrafficLightPhase.Green => Brushes.LimeGreen,
+            TrafficLightPhase.Yellow => Brushes.Gold,
+            TrafficLightPhase.Red => Brushes.Red,
+            _ => Brushes.Gray
+        };
+
+        dc.DrawEllipse(brush, null, new Point(cx, cy), radius, radius);
+    }
+
+    private void DrawSpawnIndicator(DrawingContext dc, int gridX, int gridY)
+    {
+        // Small filled green upward triangle in the top-right corner
+        var ox = gridX * _cellSizePixels;
+        var oy = gridY * _cellSizePixels;
+        var size = _cellSizePixels * 0.22;
+        var margin = _cellSizePixels * 0.06;
+        var right = ox + _cellSizePixels - margin;
+        var top = oy + margin;
+
+        var geo = new StreamGeometry();
+        using (var ctx = geo.Open())
+        {
+            ctx.BeginFigure(new Point(right - size, top + size), isFilled: true, isClosed: true);
+            ctx.LineTo(new Point(right, top + size), isStroked: false, isSmoothJoin: false);
+            ctx.LineTo(new Point(right - size / 2, top), isStroked: false, isSmoothJoin: false);
+        }
+        geo.Freeze();
+        dc.DrawGeometry(Brushes.LimeGreen, null, geo);
+    }
+
+    private void DrawExitIndicator(DrawingContext dc, int gridX, int gridY)
+    {
+        // Small filled red downward triangle in the top-right corner
+        var ox = gridX * _cellSizePixels;
+        var oy = gridY * _cellSizePixels;
+        var size = _cellSizePixels * 0.22;
+        var margin = _cellSizePixels * 0.06;
+        var right = ox + _cellSizePixels - margin;
+        var top = oy + margin;
+
+        var geo = new StreamGeometry();
+        using (var ctx = geo.Open())
+        {
+            ctx.BeginFigure(new Point(right - size, top), isFilled: true, isClosed: true);
+            ctx.LineTo(new Point(right, top), isStroked: false, isSmoothJoin: false);
+            ctx.LineTo(new Point(right - size / 2, top + size), isStroked: false, isSmoothJoin: false);
+        }
+        geo.Freeze();
+        dc.DrawGeometry(Brushes.Red, null, geo);
+    }
+
+    private void DrawSelectedHighlight(DrawingContext dc, int gridX, int gridY)
+    {
+        var rect = new Rect(
+            gridX * _cellSizePixels + 1,
+            gridY * _cellSizePixels + 1,
+            _cellSizePixels - 2,
+            _cellSizePixels - 2);
+        dc.DrawRectangle(null, SelectedNodePen, rect);
+    }
+
     private void DrawArrow(DrawingContext dc, Cell cell, int gridX, int gridY, Brush fill, Pen stroke)
     {
         var points = cell.Direction switch

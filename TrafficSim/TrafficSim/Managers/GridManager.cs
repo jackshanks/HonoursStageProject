@@ -247,6 +247,70 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
     }
 
     /// <summary>
+    /// Sets traffic light node positions and their current phase
+    /// </summary>
+    public void SetTrafficLightNodes(List<(int gridX, int gridY, TrafficLightPhase phase)> nodes)
+    {
+        _renderer.SetTrafficLightNodes(nodes);
+    }
+
+    /// <summary>
+    /// Clears all traffic light nodes
+    /// </summary>
+    public void ClearTrafficLightNodes()
+    {
+        _renderer.ClearTrafficLightNodes();
+    }
+
+    /// <summary>
+    /// Sets spawn node indicator positions
+    /// </summary>
+    public void SetSpawnNodes(IEnumerable<(int gridX, int gridY)> nodes)
+    {
+        _renderer.SetSpawnNodes(nodes);
+    }
+
+    /// <summary>
+    /// Clears all spawn node indicators
+    /// </summary>
+    public void ClearSpawnNodes()
+    {
+        _renderer.ClearSpawnNodes();
+    }
+
+    /// <summary>
+    /// Sets exit node indicator positions
+    /// </summary>
+    public void SetExitNodes(IEnumerable<(int gridX, int gridY)> nodes)
+    {
+        _renderer.SetExitNodes(nodes);
+    }
+
+    /// <summary>
+    /// Clears all exit node indicators
+    /// </summary>
+    public void ClearExitNodes()
+    {
+        _renderer.ClearExitNodes();
+    }
+
+    /// <summary>
+    /// Highlights the node at the given grid position as selected
+    /// </summary>
+    public void SetSelectedNode(int gridX, int gridY)
+    {
+        _renderer.SetSelectedNode(gridX, gridY);
+    }
+
+    /// <summary>
+    /// Removes the selected node highlight
+    /// </summary>
+    public void ClearSelectedNode()
+    {
+        _renderer.ClearSelectedNode();
+    }
+
+    /// <summary>
     /// Returns all non-empty cells for JSON
     /// </summary>
     public List<Cell> GetAllNonEmptyCells()

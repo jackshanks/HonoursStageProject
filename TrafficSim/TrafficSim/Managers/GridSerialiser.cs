@@ -18,7 +18,7 @@ public static class GridSerialiser
     };
 
     /// <summary>
-    /// Extracts the current grid state into a serialisable DTO
+    /// Extracts the current grid state into a serialisable data transfer object
     /// </summary>
     public static GridData ExtractGridData(GridManager gridManager)
     {

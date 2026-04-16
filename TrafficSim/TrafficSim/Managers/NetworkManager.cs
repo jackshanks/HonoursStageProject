@@ -17,7 +17,7 @@ public static class NetworkManager
     /// <param name="height">the height of the grid in cells</param>
     /// <param name="cellSizeMeters">The size of the cells in meters</param>
     /// <returns>The built network (considered immutable)</returns>
-    public static LaneNetwork BuildNetwork(Cell[,] grid, int width, int height, double cellSizeMeters)
+    public static LaneNetwork BuildNetwork(Cell[,] grid, int width, int height, double cellSizeMeters, SimulationConfig? config = null)
     {
         var network = new LaneNetwork { CellSizeMeters = cellSizeMeters };
         var nodeMap = new Dictionary<(int, int), TrafficNode>();
@@ -89,7 +89,7 @@ public static class NetworkManager
             }
         }
         
-        BuildJunctionLanes(grid, width, height, network);
+        BuildJunctionLanes(grid, width, height, network, config);
 
         foreach (var node in network.Nodes)
         {
@@ -129,7 +129,7 @@ public static class NetworkManager
     /// <summary>
     /// Checks if a lane can connect to another lane (Prevents U Turns)
     /// </summary>
-    /// <param name="fromDirection">Enter direction</param>
+    /// <param name="fromDirection">Entrance direction</param>
     /// <param name="toDirection">Leave direction</param>
     /// <returns></returns>
     private static bool CanConnect(TrafficDirection fromDirection, TrafficDirection toDirection)
@@ -168,21 +168,16 @@ public static class NetworkManager
     /// <param name="width">Width of grid in cells</param>
     /// <param name="height">Height of grid in cells</param>
     /// <param name="network">The built network</param>
-    private static void BuildJunctionLanes(Cell[,] grid, int width, int height, LaneNetwork network)
+    /// <param name="config">Simulation config</param>
+    private static void BuildJunctionLanes(Cell[,] grid, int width, int height, LaneNetwork network, SimulationConfig? config = null)
     {
         var junctionGroups = FindJunctionGroups(grid, width, height);
 
         foreach (var group in junctionGroups)
         {
-            // Get all give-way directions in a junction group
-            var groupGiveWayDirs = new HashSet<TrafficDirection>();
-            foreach (var (cx, cy) in group)
-            {
-                foreach (var dir in grid[cx, cy].GiveWayDirections)
-                {
-                    groupGiveWayDirs.Add(dir);
-                }
-            }
+            // Determine junction type from the first cell in the group
+            var (firstX, firstY) = group.First();
+            var junctionType = grid[firstX, firstY].JunctionType;
 
             // Find all approach and exit nodes in a junction group
             var approachNodes = new List<(TrafficNode node, TrafficDirection dir)>();
@@ -206,20 +201,9 @@ public static class NetworkManager
                     exitNodes.Add((node, direction));
                 }
             }
-
-            // Mark give-way nodes and assign their priority nodes
-            var priorityNodes = approachNodes .Where(a => !groupGiveWayDirs.Contains(a.dir)) .Select(a => a.node) .ToList();
             
-            foreach (var (node, dir) in approachNodes)
-            {
-                if (!groupGiveWayDirs.Contains(dir))
-                {
-                    continue;
-                }
-                node.IsGiveWay = true;
-                node.PriorityNodes.AddRange(priorityNodes);
-            }
-
+            // Calculate lane conflicts
+            var junctionConnectors = new List<Lane>();
             foreach (var (approachNode, approachDir) in approachNodes)
             {
                 foreach (var (exitNode, exitDir) in exitNodes)
@@ -233,13 +217,182 @@ public static class NetworkManager
                         continue;
                     }
 
-                    // Adds a lane between each possible connection of approach and exit nodes in a junction
                     var approachSpeedMps = grid[approachNode.GridX, approachNode.GridY].SpeedLimitMph * MphToMps;
                     var lane = new Lane(approachNode, exitNode, approachDir, exitDir, approachSpeedMps);
                     network.AddLane(lane);
+                    junctionConnectors.Add(lane);
+                }
+            }
+
+            // Compute which lanes are in conflict for junctions
+            ComputeConflictingLanes(junctionConnectors);
+
+            // Apply junction logic
+            switch (junctionType)
+            {
+                case JunctionType.TrafficLight:
+                {
+                    BuildTrafficLightJunction(approachNodes, junctionConnectors, network, config ?? SimulationConfig.Default);
+                    break;
+                }
+                case JunctionType.GiveWay:
+                case JunctionType.Stop:
+                default:
+                {
+                    BuildGiveWayJunction(grid, group, approachNodes);
+                    break;
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// For each pair of junction connector lanes, checks whether their paths cross and if so adds each to the other's ConflictingLanes list
+    /// </summary>
+    private static void ComputeConflictingLanes(List<Lane> connectors)
+    {
+        const int samples = 12;
+        var threshold = Car.WidthMeters;
+
+        for (var i = 0; i < connectors.Count; i++)
+        {
+            for (var j = i + 1; j < connectors.Count; j++)
+            {
+                var a = connectors[i];
+                var b = connectors[j];
+
+                // Same approach or same exit which is handled by follow car ahead
+                if (a.StartNode == b.StartNode || a.EndNode == b.EndNode)
+                {
+                    continue;
+                }
+
+                // Don't flag cars driving past each other
+                if (a.Type == LaneType.Straight && b.Type == LaneType.Straight &&
+                    GetOpposite(a.StartDirection) == b.StartDirection &&
+                    GetOpposite(a.EndDirection) == b.EndDirection)
+                {
+                    continue;
+                }
+
+                // Sample both curves and check if any sample pair is within the width threshold.
+                var minDistSq = double.MaxValue;
+                for (var si = 0; si <= samples; si++)
+                {
+                    var pa = a.GetPositionAt((double)si / samples);
+                    for (var sj = 0; sj <= samples; sj++)
+                    {
+                        var pb = b.GetPositionAt((double)sj / samples);
+                        var dx = pa.X - pb.X;
+                        var dy = pa.Y - pb.Y;
+                        var distSq = dx * dx + dy * dy;
+                        if (distSq < minDistSq) minDistSq = distSq;
+                    }
+                }
+
+                if (!(minDistSq < threshold * threshold)) continue;
+                a.ConflictingLanes.Add(b);
+                b.ConflictingLanes.Add(a);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Marks approach nodes with give-way flags and assigns priority nodes
+    /// </summary>
+    private static void BuildGiveWayJunction(Cell[,] grid, HashSet<(int, int)> group,
+        List<(TrafficNode node, TrafficDirection dir)> approachNodes)
+    {
+        var groupGiveWayDirs = new HashSet<TrafficDirection>();
+        foreach (var (cx, cy) in group)
+        {
+            foreach (var dir in grid[cx, cy].GiveWayDirections)
+            {
+                groupGiveWayDirs.Add(dir);
+            }
+        }
+
+        var priorityNodes = approachNodes.Where(a => !groupGiveWayDirs.Contains(a.dir)).Select(a => a.node).ToList();
+
+        foreach (var (node, dir) in approachNodes)
+        {
+            if (!groupGiveWayDirs.Contains(dir))
+            {
+                continue;
+            }
+            node.IsGiveWay = true;
+            node.PriorityNodes.AddRange(priorityNodes);
+        }
+    }
+
+    /// <summary>
+    /// Creates a TrafficLightController for the junction with phases based on lane conflicts
+    /// </summary>
+    private static void BuildTrafficLightJunction( List<(TrafficNode node, TrafficDirection dir)> approachNodes, List<Lane> junctionConnectors, LaneNetwork network, SimulationConfig config)
+    {
+        var directionConflicts = new Dictionary<TrafficDirection, HashSet<TrafficDirection>>();
+        foreach (var (_, dir) in approachNodes)
+        {
+            directionConflicts.TryAdd(dir, []);
+        }
+        foreach (var connector in junctionConnectors)
+        {
+            foreach (var conflicting in connector.ConflictingLanes)
+            {
+                directionConflicts[connector.StartDirection].Add(conflicting.StartDirection);
+            }
+        }
+
+        // Assign each direction the lowest phase index that isn't already used by a conflicting direction.
+        var colorAssignment = new Dictionary<TrafficDirection, int>();
+        foreach (var dir in directionConflicts.Keys)
+        {
+            var usedColors = directionConflicts[dir]
+                .Where(d => colorAssignment.ContainsKey(d))
+                .Select(d => colorAssignment[d])
+                .ToHashSet();
+
+            var color = 0;
+            while (usedColors.Contains(color)) color++;
+            colorAssignment[dir] = color;
+        }
+
+        // Group directions by assigned colour into phase groups.
+        var phaseGroupsDict = new Dictionary<int, HashSet<TrafficDirection>>();
+        foreach (var (dir, color) in colorAssignment)
+        {
+            if (!phaseGroupsDict.TryGetValue(color, out var phaseGroup))
+            {
+                phaseGroup = [];
+                phaseGroupsDict[color] = phaseGroup;
+            }
+            phaseGroup.Add(dir);
+        }
+
+        var phaseGroups = phaseGroupsDict.Values.ToList();
+        if (phaseGroups.Count == 0) return;
+
+        var approachNodesByDirection = new Dictionary<TrafficDirection, List<TrafficNode>>();
+        foreach (var (node, dir) in approachNodes)
+        {
+            node.ApproachDirection = dir;
+
+            if (!approachNodesByDirection.TryGetValue(dir, out var nodes))
+            {
+                nodes = [];
+                approachNodesByDirection[dir] = nodes;
+            }
+            nodes.Add(node);
+        }
+
+        var controller = new TrafficLightController(phaseGroups, config);
+
+        foreach (var (node, _) in approachNodes)
+        {
+            node.TrafficLight = controller;
+        }
+
+        network.TrafficLightControllers.Add(controller);
     }
     
     /// <summary>

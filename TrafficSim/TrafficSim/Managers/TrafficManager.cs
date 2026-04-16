@@ -21,7 +21,8 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
     private readonly Dictionary<Guid, double> _spawnTimers = new();
 
     private readonly Random _random = new();
-    
+    private readonly Dictionary<Guid, double> _spawnIntervals = new();
+
     private List<TrafficNode> _exitNodesCache = [];
     private Dictionary<Guid, double> _exitNodeWeights = new();
     // Map of spawn node ID to list of exit nodes reachable from that spawn (ensures disconnected networks don't break)
@@ -42,12 +43,14 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
             _cars.Clear();
             _carsPerLane.Clear();
             _spawnTimers.Clear();
+            _spawnIntervals.Clear();
 
-            _laneNetwork = NetworkManager.BuildNetwork(grid, width, height, cellSizeMeters);
+            _laneNetwork = NetworkManager.BuildNetwork(grid, width, height, cellSizeMeters, _config);
 
             foreach (var node in _laneNetwork.SpawnNodes)
             {
-                _spawnTimers[node.Id] = 0.0; 
+                _spawnTimers[node.Id] = 0.0;
+                _spawnIntervals[node.Id] = SimulationConfig.Default.SpawnInterval;
             }
 
             // Cache exit nodes and check reachability
@@ -98,7 +101,13 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
             
             // Used by cars to look up other near-by cars based on lanes
             UpdateSpatialIndex();
-            
+
+            // Tick all traffic light controllers
+            foreach (var controller in _laneNetwork.TrafficLightControllers)
+            {
+                controller.Update(deltaTime);
+            }
+
             for (var i = _cars.Count - 1; i >= 0; i--)
             {
                 var car = _cars[i];
@@ -128,7 +137,8 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
                     continue;
                 }
                 elapsed += deltaTime;
-                if (elapsed >= _config.SpawnInterval)
+                var spawnInterval = _spawnIntervals.GetValueOrDefault(node.Id, SimulationConfig.Default.SpawnInterval);
+                if (elapsed >= spawnInterval)
                 {
                     TrySpawnAtNode(node);
                     elapsed = 0.0;
@@ -192,9 +202,55 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
             return;
         }
 
+        // Look ahead through the route for the nearest traffic light
+        TrafficNode? lightNode = null;
+        double distToStopLine = 0;
+        bool onApproachLane = false;
+
+        foreach (var (lane, _, dist) in car.GetCachedPathAhead())
+        {
+            if (lane.EndNode.TrafficLight == null)
+            {
+                continue;
+            }
+
+            if (dist < _config.GiveWayCheckDistance)
+            {
+                lightNode = lane.EndNode;
+                distToStopLine = dist;
+                onApproachLane = lane == car.CurrentLane;
+            }
+            break; // Only react to the nearest traffic light
+        }
+        
+        if (lightNode != null && onApproachLane)
+        {
+            var phase = lightNode.TrafficLight!.GetPhaseForNode(lightNode);
+            switch (phase)
+            {
+                case TrafficLightPhase.Red:
+                {
+                    var targetSpeed = car.MaxSpeed * (distToStopLine / _config.GiveWayCheckDistance);
+                    car.SetTargetSpeed(Math.Max(0, targetSpeed), deltaTime);
+                    return;
+                }
+                case TrafficLightPhase.Yellow:
+                {
+                    // If far from junction, slow down. If close (committed), continue through.
+                    if (distToStopLine > _config.GiveWayCheckDistance * 0.4)
+                    {
+                        var targetSpeed = car.MaxSpeed * (distToStopLine / _config.GiveWayCheckDistance);
+                        car.SetTargetSpeed(Math.Max(0, targetSpeed), deltaTime);
+                        return;
+                    }
+                    break;
+                }
+            }
+        }
+
         // Give way check
         var endNode = car.CurrentLane.EndNode;
-        if (endNode.IsGiveWay && endNode.PriorityNodes.Count > 0)
+        if (endNode is { IsGiveWay: true, PriorityNodes.Count: > 0 })
         {
             var remainingDist = (1.0 - car.LanePosition) * car.CurrentLane.Length;
             if (remainingDist < _config.GiveWayCheckDistance && HasConflictingTraffic(endNode))
@@ -202,6 +258,17 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
                 var targetSpeed = car.MaxSpeed * (remainingDist / _config.GiveWayCheckDistance);
                 car.SetTargetSpeed(Math.Max(0, targetSpeed), deltaTime);
                 return;
+            }
+        }
+        
+        // Cap the speed of the car approaching a light
+        double? preLightCap = null;
+        if (lightNode != null && !onApproachLane)
+        {
+            var phase = lightNode.TrafficLight!.GetPhaseForNode(lightNode);
+            if (phase == TrafficLightPhase.Red || (phase == TrafficLightPhase.Yellow && distToStopLine > _config.GiveWayCheckDistance * 0.4))
+            {
+                preLightCap = Math.Max(0, car.MaxSpeed * (distToStopLine / _config.GiveWayCheckDistance));
             }
         }
 
@@ -213,31 +280,50 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
 
             switch (distance)
             {
-                // Cars will break sharply at this distance
+                // Cars will brake sharply at this distance
                 case var d when d < _config.MinFollowingDistance:
                     car.Decelerate(deltaTime);
                     break;
                 case var d when d < _config.SafeFollowingDistance:
                 {
-                    var targetSpeed = Math.Min(carAhead.Speed, car.MaxSpeed);
-                    car.SetTargetSpeed(targetSpeed * 0.8, deltaTime);
+                    var targetSpeed = Math.Min(carAhead.Speed, car.MaxSpeed) * 0.8;
+                    if (preLightCap.HasValue) 
+                    {
+                        targetSpeed = Math.Min(targetSpeed, preLightCap.Value);
+                    }
+                    car.SetTargetSpeed(targetSpeed, deltaTime);
                     break;
                 }
-                // Cars will begin slowing down at this distance if there is slow traffic ahead
+                // Cars begin slowing at this distance if there is slow traffic ahead
                 case var d when d < _config.ReactionDistance:
                 {
                     var targetSpeed = car.MaxSpeed * (distance / _config.ReactionDistance);
+                    if (preLightCap.HasValue) targetSpeed = Math.Min(targetSpeed, preLightCap.Value);
                     car.SetTargetSpeed(targetSpeed, deltaTime);
                     break;
                 }
                 default:
-                    car.Accelerate(deltaTime);
+                    if (preLightCap.HasValue)
+                    {
+                        car.SetTargetSpeed(preLightCap.Value, deltaTime);
+                    }
+                    else
+                    {
+                        car.Accelerate(deltaTime);
+                    }
                     break;
             }
         }
         else
         {
-            car.Accelerate(deltaTime);
+            if (preLightCap.HasValue)
+            {
+                car.SetTargetSpeed(preLightCap.Value, deltaTime);
+            }
+            else
+            {
+                car.Accelerate(deltaTime);
+            }
         }
     }
     
@@ -325,6 +411,31 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
     }
 
     /// <summary>
+    /// Gets the current traffic light phase for all traffic-light-controlled nodes
+    /// </summary>
+    /// <returns>List of node positions and their current phase</returns>
+    public List<(int gridX, int gridY, TrafficLightPhase phase)> GetTrafficLightRenderData()
+    {
+        lock (_carsLock)
+        {
+            if (_laneNetwork == null)
+            {
+                return [];
+            }
+
+            var result = new List<(int, int, TrafficLightPhase)>();
+            foreach (var node in _laneNetwork.Nodes)
+            {
+                if (node.TrafficLight != null)
+                {
+                    result.Add((node.GridX, node.GridY, node.TrafficLight.GetPhaseForNode(node)));
+                }
+            }
+            return result;
+        }
+    }
+
+    /// <summary>
     /// Gets the positions of all give-way nodes
     /// </summary>
     /// <returns>List of all give-way nodes</returns>
@@ -340,6 +451,125 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
                 .Where(n => n.IsGiveWay)
                 .Select(n => (n.GridX, n.GridY))
                 .ToList();
+        }
+    }
+
+    /// <summary>
+    /// Sets the seconds between car spawns at a specific spawn node.
+    /// </summary>
+    public void SetSpawnInterval(int gridX, int gridY, double seconds)
+    {
+        lock (_carsLock)
+        {
+            var node = _laneNetwork?.GetNodeAt(gridX, gridY);
+            if (node != null && _spawnIntervals.ContainsKey(node.Id))
+                _spawnIntervals[node.Id] = Math.Max(0.5, seconds);
+        }
+    }
+
+    /// <summary>
+    /// Returns the current spawn interval for a specific spawn node.
+    /// </summary>
+    public double GetSpawnInterval(int gridX, int gridY)
+    {
+        lock (_carsLock)
+        {
+            var node = _laneNetwork?.GetNodeAt(gridX, gridY);
+            if (node != null && _spawnIntervals.TryGetValue(node.Id, out var interval))
+                return interval;
+            return SimulationConfig.Default.SpawnInterval;
+        }
+    }
+
+    /// <summary>
+    /// Updates the destination weight for a single exit node.
+    /// </summary>
+    public void SetExitNodeWeight(int gridX, int gridY, double weight)
+    {
+        lock (_carsLock)
+        {
+            var node = _laneNetwork?.GetNodeAt(gridX, gridY);
+            if (node != null && _exitNodeWeights.ContainsKey(node.Id))
+                _exitNodeWeights[node.Id] = Math.Max(0.0, weight);
+        }
+    }
+
+    /// <summary>
+    /// Returns the current destination weight for a single exit node.
+    /// </summary>
+    public double GetExitNodeWeight(int gridX, int gridY)
+    {
+        lock (_carsLock)
+        {
+            var node = _laneNetwork?.GetNodeAt(gridX, gridY);
+            if (node != null && _exitNodeWeights.TryGetValue(node.Id, out var weight))
+                return weight;
+            return 1.0;
+        }
+    }
+
+    /// <summary>
+    /// Updates green/yellow/red durations on the traffic light controller at the given node.
+    /// </summary>
+    public void SetTrafficLightTimings(int gridX, int gridY, double green, double yellow, double allRed)
+    {
+        lock (_carsLock)
+        {
+            _laneNetwork?.GetNodeAt(gridX, gridY)?.TrafficLight?.SetTimings(green, yellow, allRed);
+        }
+    }
+
+    /// <summary>
+    /// Returns the current green/yellow/red durations for the controller at the given node.
+    /// </summary>
+    public (double green, double yellow, double allRed)? GetTrafficLightTimings(int gridX, int gridY)
+    {
+        lock (_carsLock)
+        {
+            var node = _laneNetwork?.GetNodeAt(gridX, gridY);
+            return node?.TrafficLight?.GetTimings();
+        }
+    }
+
+    /// <summary>
+    /// Returns grid coordinates and ID for every spawn node in the current network.
+    /// </summary>
+    public IReadOnlyList<(int gridX, int gridY, Guid id)> GetSpawnNodeInfos()
+    {
+        lock (_carsLock)
+        {
+            if (_laneNetwork == null) return [];
+            return _laneNetwork.SpawnNodes.Select(n => (n.GridX, n.GridY, n.Id)).ToList();
+        }
+    }
+
+    /// <summary>
+    /// Returns grid coordinates and ID for every exit node in the current network.
+    /// </summary>
+    public IReadOnlyList<(int gridX, int gridY, Guid id)> GetExitNodeInfos()
+    {
+        lock (_carsLock)
+        {
+            return _exitNodesCache.Select(n => (n.GridX, n.GridY, n.Id)).ToList();
+        }
+    }
+
+    /// <summary>
+    /// Returns what kind of configurable sim node (if any) is at the given pixel position.
+    /// </summary>
+    public (NodeKind kind, int gridX, int gridY)? GetSimNodeAt(double pixelX, double pixelY)
+    {
+        lock (_carsLock)
+        {
+            if (_laneNetwork == null) return null;
+            var cell = gridManager.GetCellFromPixel(pixelX, pixelY);
+            if (cell == null) return null;
+            var node = _laneNetwork.GetNodeAt(cell.X, cell.Y);
+            if (node == null) return null;
+            if (node.Enums == Enums.Spawn) return (NodeKind.Spawn, cell.X, cell.Y);
+            if (node.Enums == Enums.Exit) return (NodeKind.Exit, cell.X, cell.Y);
+            if (node.TrafficLight != null) return (NodeKind.TrafficLight, cell.X, cell.Y);
+            return null;
         }
     }
 
@@ -431,17 +661,28 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
         
         var lane = route[0];
 
-        // Check if there is a car too close
-        if (_carsPerLane.TryGetValue(lane.Id, out var carsOnLane))
+        // Don't spawn if there isn't enough clear road ahead
+        var minClearance = _config.ReactionDistance + Car.LengthMeters;
+        var distToLaneStart = 0.0;
+        var minDistAhead = double.MaxValue;
+        foreach (var checkLane in route.Take(2))
         {
-            foreach (var existingCar in carsOnLane)
+            if (_carsPerLane.TryGetValue(checkLane.Id, out var carsOnCheckLane))
             {
-                var distance = existingCar.LanePosition * lane.Length;
-                if (distance < _config.MinFollowingDistance * 2)
-                { 
-                    return false; 
+                foreach (var other in carsOnCheckLane)
+                {
+                    var distFromSpawn = distToLaneStart + other.LanePosition * checkLane.Length;
+                    if (distFromSpawn < minClearance)
+                    {
+                        return false;
+                    }
+                    if (distFromSpawn < minDistAhead)
+                    {
+                        minDistAhead = distFromSpawn;
+                    }
                 }
             }
+            distToLaneStart += checkLane.Length;
         }
 
         const double fiveMphInMps = 5.0 * 0.44704;
@@ -449,7 +690,13 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
         var colors = Enum.GetValues<CarColor>();
         var color = colors[_random.Next(colors.Length)];
 
-        var car = new Car(lane, speedOffset, color, _config, 0.0, route, destination);
+        // Scale initial speed to the gap ahead
+        var maxSpawnSpeed = Math.Max(lane.SpeedLimitMps + speedOffset, 0.0);
+        var initialSpeed = minDistAhead < double.MaxValue
+            ? maxSpawnSpeed * Math.Clamp((minDistAhead - Car.LengthMeters) / _config.ReactionDistance, 0.0, 1.0)
+            : maxSpawnSpeed;
+
+        var car = new Car(lane, speedOffset, color, _config, 0.0, route, destination, initialSpeed);
         _cars.Add(car);
         return true;
     }
@@ -479,6 +726,7 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
             _exitNodesCache.Clear();
             _exitNodeWeights.Clear();
             _reachableExits.Clear();
+            _spawnIntervals.Clear();
         }
     }
     

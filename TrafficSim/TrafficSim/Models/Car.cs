@@ -32,13 +32,13 @@ public class Car
     private int _routeIndex;
     public TrafficNode? Destination { get; }
 
-    public Car(Lane startLane, double speedOffsetMps, CarColor color, SimulationConfig config, double startPosition = 0.0, List<Lane>? route = null, TrafficNode? destination = null)
+    public Car(Lane startLane, double speedOffsetMps, CarColor color, SimulationConfig config, double startPosition = 0.0, List<Lane>? route = null, TrafficNode? destination = null, double? startSpeed = null)
     {
         CurrentLane = startLane;
         LanePosition = Math.Clamp(startPosition, 0.0, 1.0);
         SpeedOffsetMps = speedOffsetMps;
         _fallbackMaxSpeed = Math.Max(startLane.SpeedLimitMps + speedOffsetMps, 0);
-        Speed = _fallbackMaxSpeed;
+        Speed = Math.Min(startSpeed ?? _fallbackMaxSpeed, _fallbackMaxSpeed);
         Color = color;
         _config = config;
         _route = route;

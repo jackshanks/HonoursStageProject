@@ -14,6 +14,8 @@ public class LaneNetwork
     public IEnumerable<TrafficNode> ExitNodes => _nodes.Values.Where(n => n.Enums == Enums.Exit);
 
     public double CellSizeMeters { get; init; } = 4.0;
+
+    public List<TrafficLightController> TrafficLightControllers { get; } = [];
     
     public void AddNode(TrafficNode node)
     {
@@ -36,6 +38,7 @@ public class LaneNetwork
         _nodes.Clear();
         _lanes.Clear();
         _cellToNode.Clear();
+        TrafficLightControllers.Clear();
     }
     
     public (int nodeCount, int laneCount, int straightLanes, int curvedLanes) GetStats()
