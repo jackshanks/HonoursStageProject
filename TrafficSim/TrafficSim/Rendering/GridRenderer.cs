@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Globalization;
 using TrafficSim.Models;
 
 namespace TrafficSim.Rendering;
@@ -22,8 +23,13 @@ public class GridRenderer
     private readonly HashSet<(int, int)> _giveWayNodes = [];
     private readonly Dictionary<(int, int), TrafficLightPhase> _trafficLightNodes = new();
     private readonly HashSet<(int, int)> _spawnNodes = [];
+    private readonly Dictionary<(int, int), double> _spawnBacklogs = new();
     private readonly HashSet<(int, int)> _exitNodes = [];
     private (int x, int y)? _selectedNode;
+
+    public bool IsEditMode { get; set; } = true;
+
+    private readonly List<(double cx, double cy)> _junctionGroupCenters = [];
 
     // Frozen pen objects to avoid new objects every render call
     private static readonly Pen GridLinePen     = MakeFrozenPen(Brushes.LightGray, 0.3);
@@ -139,6 +145,7 @@ public class GridRenderer
                 if (_spawnNodes.Contains((x, y)))
                 {
                     DrawSpawnIndicator(renderOpen, x, y);
+                    DrawSpawnBacklogBadge(renderOpen, x, y, _spawnBacklogs.GetValueOrDefault((x, y), 0.0));
                 }
 
                 if (_exitNodes.Contains((x, y)))
@@ -152,6 +159,25 @@ public class GridRenderer
                 }
             }
         }
+
+        if (!IsEditMode) return;
+        foreach (var (cx, cy) in _junctionGroupCenters)
+        {
+            DrawGearIcon(renderOpen, cx, cy);
+        }
+    }
+
+    public void SetJunctionGroupCenters(IEnumerable<(double cx, double cy)> centers)
+    {
+        _junctionGroupCenters.Clear();
+        _junctionGroupCenters.AddRange(centers);
+        RenderGrid();
+    }
+
+    public void ClearJunctionGroupCenters()
+    {
+        _junctionGroupCenters.Clear();
+        RenderGrid();
     }
 
     public void SetGiveWayNodes(IEnumerable<(int gridX, int gridY)> nodes)
@@ -199,6 +225,22 @@ public class GridRenderer
     public void ClearSpawnNodes()
     {
         _spawnNodes.Clear();
+        RenderGrid();
+    }
+
+    public void SetSpawnBacklogs(IEnumerable<(int gridX, int gridY, double backlog)> nodes)
+    {
+        _spawnBacklogs.Clear();
+        foreach (var (gx, gy, backlog) in nodes)
+        {
+            _spawnBacklogs[(gx, gy)] = Math.Max(0.0, backlog);
+        }
+        RenderGrid();
+    }
+
+    public void ClearSpawnBacklogs()
+    {
+        _spawnBacklogs.Clear();
         RenderGrid();
     }
 
@@ -253,6 +295,21 @@ public class GridRenderer
         dc.DrawGeometry(Brushes.White, GiveWayPen, geo);
     }
     
+    private void DrawGearIcon(DrawingContext dc, double pixelCx, double pixelCy)
+    {
+        var fontSize = Math.Max(8.0, _cellSizePixels * 0.45);
+        var formatted = new FormattedText(
+            "⚙",
+            CultureInfo.InvariantCulture,
+            FlowDirection.LeftToRight,
+            new Typeface("Segoe UI"),
+            fontSize,
+            Brushes.White,
+            1.0);
+
+        dc.DrawText(formatted, new Point(pixelCx - formatted.Width / 2, pixelCy - formatted.Height / 2));
+    }
+
     private void DrawTrafficLight(DrawingContext dc, int gridX, int gridY, TrafficLightPhase phase)
     {
         var cx = gridX * _cellSizePixels + _cellSizePixels / 2;
@@ -289,6 +346,38 @@ public class GridRenderer
         }
         geo.Freeze();
         dc.DrawGeometry(Brushes.LimeGreen, null, geo);
+    }
+
+    private void DrawSpawnBacklogBadge(DrawingContext dc, int gridX, int gridY, double backlog)
+    {
+        var backlogCount = (int)Math.Floor(backlog);
+        var label = backlogCount.ToString(CultureInfo.InvariantCulture);
+
+        // Show 0 as well so every spawn node has an explicit backlog indicator.
+        var fontSize = Math.Max(9.0, _cellSizePixels * 0.28);
+        var formattedText = new FormattedText(
+            label,
+            CultureInfo.InvariantCulture,
+            FlowDirection.LeftToRight,
+            new Typeface("Segoe UI"),
+            fontSize,
+            Brushes.White,
+            1.0);
+
+        var centerX = gridX * _cellSizePixels + _cellSizePixels * 0.26;
+        var centerY = gridY * _cellSizePixels + _cellSizePixels * 0.23;
+        var textX = centerX - formattedText.Width / 2;
+        var textY = centerY - formattedText.Height / 2;
+
+        var padding = Math.Max(2.0, _cellSizePixels * 0.08);
+        var badgeRect = new Rect(
+            textX - padding,
+            textY - padding * 0.8,
+            formattedText.Width + padding * 2,
+            formattedText.Height + padding * 1.6);
+
+        dc.DrawRoundedRectangle(new SolidColorBrush(Color.FromArgb(205, 25, 25, 25)), null, badgeRect, 4, 4);
+        dc.DrawText(formattedText, new Point(textX, textY));
     }
 
     private void DrawExitIndicator(DrawingContext dc, int gridX, int gridY)
