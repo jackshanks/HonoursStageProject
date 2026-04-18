@@ -6,8 +6,11 @@ public class LaneNetwork
     private readonly Dictionary<Guid, Lane> _lanes = new();
     
     private readonly Dictionary<(int, int), TrafficNode> _cellToNode = new();
+    private readonly Dictionary<(int, int), Lane> _cellToLane = new();
     
     public IReadOnlyCollection<TrafficNode> Nodes => _nodes.Values;
+
+    public IReadOnlyCollection<Lane> Lanes => _lanes.Values;
 
     public IEnumerable<TrafficNode> SpawnNodes => _nodes.Values.Where(n => n.Enums == Enums.Spawn);
 
@@ -33,11 +36,17 @@ public class LaneNetwork
         return _cellToNode.GetValueOrDefault((gridX, gridY));
     }
 
+    public void AddCellLaneMapping(int gridX, int gridY, Lane lane)
+    {
+        _cellToLane[(gridX, gridY)] = lane;
+    }
+
     public void Clear()
     {
         _nodes.Clear();
         _lanes.Clear();
         _cellToNode.Clear();
+        _cellToLane.Clear();
         TrafficLightControllers.Clear();
     }
     

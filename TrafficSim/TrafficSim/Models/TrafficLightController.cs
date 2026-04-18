@@ -1,9 +1,7 @@
 namespace TrafficSim.Models;
 
 /// <summary>
-/// Controls the traffic light phases for a single junction group.
-/// One instance per traffic-light junction. Cycles through phase groups
-/// (e.g., North/South green then East/West green) with yellow and all-red gaps.
+/// Controls the traffic light phases for a single junction group
 /// </summary>
 public class TrafficLightController( List<HashSet<TrafficDirection>> phaseGroups, SimulationConfig config)
 {
@@ -16,7 +14,7 @@ public class TrafficLightController( List<HashSet<TrafficDirection>> phaseGroups
     private double _timer;
 
     /// <summary>
-    /// Updates the phase durations. Called under _carsLock from TrafficManager.
+    /// Updates the phase durations.
     /// </summary>
     public void SetTimings(double green, double yellow, double allRed)
     {
@@ -35,7 +33,6 @@ public class TrafficLightController( List<HashSet<TrafficDirection>> phaseGroups
 
     /// <summary>
     /// Advance the traffic light timer and cycle phases when needed.
-    /// Called once per physics tick inside the cars lock.
     /// </summary>
     public void Update(double deltaTime)
     {
@@ -50,21 +47,20 @@ public class TrafficLightController( List<HashSet<TrafficDirection>> phaseGroups
         {
             case TrafficLightPhase.Green when _timer >= _greenDuration:
                 _currentSubPhase = TrafficLightPhase.Yellow;
+                _timer = 0.0;
                 break;
             case TrafficLightPhase.Yellow when _timer >= _yellowDuration:
-                // Transition to all-red gap
                 _currentSubPhase = TrafficLightPhase.Red;
+                _timer = 0.0;
                 break;
             case TrafficLightPhase.Red when _timer >= _allRedDuration:
-                // Advance to the next phase group and go green
                 _currentPhaseIndex = (_currentPhaseIndex + 1) % phaseGroups.Count;
                 _currentSubPhase = TrafficLightPhase.Green;
+                _timer = 0.0;
                 break;
             default:
                 throw new ArgumentOutOfRangeException();
         }
-
-        _timer = 0.0;
     }
 
     /// <summary>
@@ -80,13 +76,6 @@ public class TrafficLightController( List<HashSet<TrafficDirection>> phaseGroups
         var direction = node.ApproachDirection;
         var activeGroup = phaseGroups[_currentPhaseIndex];
 
-        if (activeGroup.Contains(direction))
-        {
-            // This node's direction is currently active
-            return _currentSubPhase;
-        }
-
-        // This node's direction is not active
-        return TrafficLightPhase.Red;
+        return activeGroup.Contains(direction) ? _currentSubPhase : TrafficLightPhase.Red;
     }
 }

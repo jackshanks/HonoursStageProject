@@ -10,6 +10,7 @@ public class Cell(int x, int y, double cellSizeMeters = 4.0)
     public TrafficDirection Direction { get; private set; } = TrafficDirection.None;
     public JunctionType JunctionType { get; set; } = JunctionType.GiveWay;
     public HashSet<TrafficDirection> GiveWayDirections { get; } = [];
+    public HashSet<(TrafficDirection From, TrafficDirection To)> BlockedTurns { get; } = [];
     public int SpeedLimitMph { get; private set; } = 30;
 
     public void SetTypeAndDirection(CellType type, TrafficDirection direction)

@@ -23,4 +23,14 @@ public class CellData
     public JunctionType JunctionType { get; set; }
     public int SpeedLimitMph { get; set; }
     public List<TrafficDirection> GiveWayDirections { get; set; } = [];
+    public List<BlockedTurnData> BlockedTurns { get; set; } = [];
+}
+
+/// <summary>
+/// JSON entry for a blocked turning movement at a junction
+/// </summary>
+public class BlockedTurnData
+{
+    public TrafficDirection From { get; set; }
+    public TrafficDirection To { get; set; }
 }
