@@ -58,8 +58,6 @@ public class TrafficLightController( List<HashSet<TrafficDirection>> phaseGroups
                 _currentSubPhase = TrafficLightPhase.Green;
                 _timer = 0.0;
                 break;
-            default:
-                throw new ArgumentOutOfRangeException();
         }
     }
 

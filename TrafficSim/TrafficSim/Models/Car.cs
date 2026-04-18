@@ -3,7 +3,6 @@ namespace TrafficSim.Models;
 public class Car
 {
     public Guid Id { get; } = Guid.NewGuid();
-    public int JunctionArrivalOrder { get; set; } = int.MaxValue;
     
     public double X { get; private set; }
     public double Y { get; private set; }
