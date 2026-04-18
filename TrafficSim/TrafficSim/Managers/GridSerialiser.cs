@@ -39,7 +39,8 @@ public static class GridSerialiser
                 Direction = cell.Direction,
                 JunctionType = cell.JunctionType,
                 SpeedLimitMph = cell.SpeedLimitMph,
-                GiveWayDirections = [.. cell.GiveWayDirections]
+                GiveWayDirections = [.. cell.GiveWayDirections],
+                BlockedTurns = cell.BlockedTurns.Select(t => new BlockedTurnData { From = t.From, To = t.To }).ToList()
             });
         }
 
@@ -94,6 +95,12 @@ public static class GridSerialiser
             foreach (var dir in cd.GiveWayDirections)
             {
                 cell.GiveWayDirections.Add(dir);
+            }
+
+            cell.BlockedTurns.Clear();
+            foreach (var bt in cd.BlockedTurns)
+            {
+                cell.BlockedTurns.Add((bt.From, bt.To));
             }
         }
     }

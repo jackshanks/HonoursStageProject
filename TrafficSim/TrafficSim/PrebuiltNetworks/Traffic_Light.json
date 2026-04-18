@@ -1,0 +1,767 @@
+{
+  "GridWidth": 20,
+  "GridHeight": 20,
+  "CellSizeMeters": 4,
+  "Cells": [
+    {
+      "X": 0,
+      "Y": 9,
+      "Type": "Road",
+      "Direction": "East",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 0,
+      "Y": 10,
+      "Type": "Road",
+      "Direction": "West",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 1,
+      "Y": 9,
+      "Type": "Road",
+      "Direction": "East",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 1,
+      "Y": 10,
+      "Type": "Road",
+      "Direction": "West",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 2,
+      "Y": 9,
+      "Type": "Road",
+      "Direction": "East",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 2,
+      "Y": 10,
+      "Type": "Road",
+      "Direction": "West",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 3,
+      "Y": 9,
+      "Type": "Road",
+      "Direction": "East",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 3,
+      "Y": 10,
+      "Type": "Road",
+      "Direction": "West",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 4,
+      "Y": 9,
+      "Type": "Road",
+      "Direction": "East",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 4,
+      "Y": 10,
+      "Type": "Road",
+      "Direction": "West",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 5,
+      "Y": 9,
+      "Type": "Road",
+      "Direction": "East",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 5,
+      "Y": 10,
+      "Type": "Road",
+      "Direction": "West",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 6,
+      "Y": 9,
+      "Type": "Road",
+      "Direction": "East",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 6,
+      "Y": 10,
+      "Type": "Road",
+      "Direction": "West",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 7,
+      "Y": 9,
+      "Type": "Road",
+      "Direction": "East",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 7,
+      "Y": 10,
+      "Type": "Road",
+      "Direction": "West",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 8,
+      "Y": 9,
+      "Type": "Road",
+      "Direction": "East",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 8,
+      "Y": 10,
+      "Type": "Road",
+      "Direction": "West",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 9,
+      "Y": 9,
+      "Type": "Road",
+      "Direction": "East",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 9,
+      "Y": 10,
+      "Type": "Road",
+      "Direction": "West",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 10,
+      "Y": 0,
+      "Type": "Road",
+      "Direction": "North",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 10,
+      "Y": 1,
+      "Type": "Road",
+      "Direction": "North",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 10,
+      "Y": 2,
+      "Type": "Road",
+      "Direction": "North",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 10,
+      "Y": 3,
+      "Type": "Road",
+      "Direction": "North",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 10,
+      "Y": 4,
+      "Type": "Road",
+      "Direction": "North",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 10,
+      "Y": 5,
+      "Type": "Road",
+      "Direction": "North",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 10,
+      "Y": 6,
+      "Type": "Road",
+      "Direction": "North",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 10,
+      "Y": 7,
+      "Type": "Road",
+      "Direction": "North",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 10,
+      "Y": 8,
+      "Type": "Road",
+      "Direction": "North",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 10,
+      "Y": 9,
+      "Type": "Intersection",
+      "Direction": "None",
+      "JunctionType": "TrafficLight",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 10,
+      "Y": 10,
+      "Type": "Intersection",
+      "Direction": "None",
+      "JunctionType": "TrafficLight",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 10,
+      "Y": 11,
+      "Type": "Road",
+      "Direction": "North",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 10,
+      "Y": 12,
+      "Type": "Road",
+      "Direction": "North",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 10,
+      "Y": 13,
+      "Type": "Road",
+      "Direction": "North",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 10,
+      "Y": 14,
+      "Type": "Road",
+      "Direction": "North",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 10,
+      "Y": 15,
+      "Type": "Road",
+      "Direction": "North",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 10,
+      "Y": 16,
+      "Type": "Road",
+      "Direction": "North",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 10,
+      "Y": 17,
+      "Type": "Road",
+      "Direction": "North",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 10,
+      "Y": 18,
+      "Type": "Road",
+      "Direction": "North",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 10,
+      "Y": 19,
+      "Type": "Road",
+      "Direction": "North",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 11,
+      "Y": 0,
+      "Type": "Road",
+      "Direction": "South",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 11,
+      "Y": 1,
+      "Type": "Road",
+      "Direction": "South",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 11,
+      "Y": 2,
+      "Type": "Road",
+      "Direction": "South",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 11,
+      "Y": 3,
+      "Type": "Road",
+      "Direction": "South",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 11,
+      "Y": 4,
+      "Type": "Road",
+      "Direction": "South",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 11,
+      "Y": 5,
+      "Type": "Road",
+      "Direction": "South",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 11,
+      "Y": 6,
+      "Type": "Road",
+      "Direction": "South",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 11,
+      "Y": 7,
+      "Type": "Road",
+      "Direction": "South",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 11,
+      "Y": 8,
+      "Type": "Road",
+      "Direction": "South",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 11,
+      "Y": 9,
+      "Type": "Intersection",
+      "Direction": "None",
+      "JunctionType": "TrafficLight",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 11,
+      "Y": 10,
+      "Type": "Intersection",
+      "Direction": "None",
+      "JunctionType": "TrafficLight",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 11,
+      "Y": 11,
+      "Type": "Road",
+      "Direction": "South",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 11,
+      "Y": 12,
+      "Type": "Road",
+      "Direction": "South",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 11,
+      "Y": 13,
+      "Type": "Road",
+      "Direction": "South",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 11,
+      "Y": 14,
+      "Type": "Road",
+      "Direction": "South",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 11,
+      "Y": 15,
+      "Type": "Road",
+      "Direction": "South",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 11,
+      "Y": 16,
+      "Type": "Road",
+      "Direction": "South",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 11,
+      "Y": 17,
+      "Type": "Road",
+      "Direction": "South",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 11,
+      "Y": 18,
+      "Type": "Road",
+      "Direction": "South",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 11,
+      "Y": 19,
+      "Type": "Road",
+      "Direction": "South",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 12,
+      "Y": 9,
+      "Type": "Road",
+      "Direction": "East",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 12,
+      "Y": 10,
+      "Type": "Road",
+      "Direction": "West",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 13,
+      "Y": 9,
+      "Type": "Road",
+      "Direction": "East",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 13,
+      "Y": 10,
+      "Type": "Road",
+      "Direction": "West",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 14,
+      "Y": 9,
+      "Type": "Road",
+      "Direction": "East",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 14,
+      "Y": 10,
+      "Type": "Road",
+      "Direction": "West",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 15,
+      "Y": 9,
+      "Type": "Road",
+      "Direction": "East",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 15,
+      "Y": 10,
+      "Type": "Road",
+      "Direction": "West",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 16,
+      "Y": 9,
+      "Type": "Road",
+      "Direction": "East",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 16,
+      "Y": 10,
+      "Type": "Road",
+      "Direction": "West",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 17,
+      "Y": 9,
+      "Type": "Road",
+      "Direction": "East",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 17,
+      "Y": 10,
+      "Type": "Road",
+      "Direction": "West",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 18,
+      "Y": 9,
+      "Type": "Road",
+      "Direction": "East",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 18,
+      "Y": 10,
+      "Type": "Road",
+      "Direction": "West",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 19,
+      "Y": 9,
+      "Type": "Road",
+      "Direction": "East",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    },
+    {
+      "X": 19,
+      "Y": 10,
+      "Type": "Road",
+      "Direction": "West",
+      "JunctionType": "GiveWay",
+      "SpeedLimitMph": 30,
+      "GiveWayDirections": [],
+      "BlockedTurns": []
+    }
+  ]
+}

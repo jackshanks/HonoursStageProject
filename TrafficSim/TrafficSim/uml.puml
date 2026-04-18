@@ -1,0 +1,129 @@
+@startuml
+title TrafficSim - Core Class Diagram
+
+top to bottom direction
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+hide circle
+
+package "Grid Layer" {
+    class GridManager {
+        - grid : Cell[,]
+        + CreateGrid()
+        + SetCellTypeAndDirection()
+        + GetCellFromPixel()
+    }
+
+    class Cell {
+        + X : int
+        + Y : int
+        + Type : CellType
+        + Direction : TrafficDirection
+        + SpeedLimitMph : int
+    }
+}
+
+package "Network Layer" {
+    class NetworkManager <<static>> {
+        + BuildNetwork()
+        + ValidateNetwork()
+    }
+
+    class LaneNetwork {
+        + Nodes
+        + Lanes
+        + TrafficLightControllers
+    }
+
+    class TrafficNode {
+        + GridX : int
+        + GridY : int
+        + IsGiveWay : bool
+    }
+
+    class Lane {
+        + Length : double
+        + SpeedLimitMps : double
+        + Type : LaneType
+    }
+
+    class TrafficLightController {
+        + Update()
+        + GetPhaseForNode()
+    }
+}
+
+package "Simulation Layer" {
+    class TrafficManager {
+        - laneNetwork : LaneNetwork
+        - cars : List<Car>
+        + BuildNetwork()
+        + UpdatePhysics()
+        + StartStatistics()
+    }
+
+    class Car {
+        + Speed : double
+        + LanePosition : double
+        + Move()
+    }
+
+    class SimulationConfig {
+        + Acceleration : double
+        + Deceleration : double
+        + SpawnInterval : double
+    }
+
+    class TrafficStatistics {
+        + TotalVolume : int
+        + AverageSpeedMph : double
+        + AverageDensityVehPerKm : double
+    }
+
+    class Pathfinder <<static>> {
+        + FindPath()
+        + CheckReachability()
+    }
+}
+
+enum CellType
+enum TrafficDirection
+enum LaneType
+
+GridManager *-- "1..*" Cell
+Cell --> CellType
+Cell --> TrafficDirection
+
+NetworkManager ..> GridManager : reads
+NetworkManager ..> SimulationConfig : uses
+NetworkManager --> LaneNetwork : builds
+
+LaneNetwork *-- "1..*" TrafficNode
+LaneNetwork *-- "1..*" Lane
+LaneNetwork *-- "0..*" TrafficLightController
+
+TrafficNode --> "0..*" Lane : outgoing
+TrafficNode --> "0..*" Lane : incoming
+TrafficNode --> "0..1" TrafficLightController
+
+Lane --> "1" TrafficNode : start
+Lane --> "1" TrafficNode : end
+Lane --> LaneType
+
+TrafficManager --> GridManager
+TrafficManager --> LaneNetwork
+TrafficManager *-- "0..*" Car
+TrafficManager --> "0..1" TrafficStatistics
+TrafficManager ..> SimulationConfig
+TrafficManager ..> Pathfinder
+
+Car --> "1" Lane : current lane
+Car --> "0..1" TrafficNode : destination
+Car ..> SimulationConfig
+
+TrafficStatistics ..> LaneNetwork
+Pathfinder ..> TrafficNode
+Pathfinder ..> Lane
+
+@enduml

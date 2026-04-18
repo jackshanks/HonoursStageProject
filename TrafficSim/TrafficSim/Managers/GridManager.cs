@@ -16,7 +16,7 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
     public int GridWidth { get; private set; }
     public int GridHeight { get; private set; }
     public double CellSizeMeters { get; } = cellSizeMeters;
-    private double CellSizePixels { get; set; }
+    public double CellSizePixels { get; private set; }
     
     private Cell[,]? _grid;
     
@@ -279,6 +279,22 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
     }
 
     /// <summary>
+    /// Sets visual spawn backlog values at spawn nodes.
+    /// </summary>
+    public void SetSpawnBacklogs(IEnumerable<(int gridX, int gridY, double backlog)> nodes)
+    {
+        _renderer.SetSpawnBacklogs(nodes);
+    }
+
+    /// <summary>
+    /// Clears visual spawn backlog values.
+    /// </summary>
+    public void ClearSpawnBacklogs()
+    {
+        _renderer.ClearSpawnBacklogs();
+    }
+
+    /// <summary>
     /// Sets exit node indicator positions
     /// </summary>
     public void SetExitNodes(IEnumerable<(int gridX, int gridY)> nodes)
@@ -374,6 +390,75 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
         return $"Grid: ({cell.X}, {cell.Y}) | Position: ({cell.RealWorldX:F1}m, {cell.RealWorldY:F1}m) | Type: {cell.Type}{directionText}";
     }
     
+    /// <summary>
+    /// Returns connected groups of adjacent intersection cells.
+    /// </summary>
+    public List<List<Cell>> ComputeJunctionGroups()
+    {
+        _gridLock.EnterReadLock();
+        try
+        {
+            if (_grid == null) return [];
+            var visited = new HashSet<(int, int)>();
+            var groups = new List<List<Cell>>();
+
+            for (var x = 0; x < GridWidth; x++)
+            {
+                for (var y = 0; y < GridHeight; y++)
+                {
+                    if (_grid[x, y].Type != CellType.Intersection || visited.Contains((x, y))) continue;
+                    var group = new List<Cell>();
+                    var queue = new Queue<(int, int)>();
+                    queue.Enqueue((x, y));
+                    visited.Add((x, y));
+
+                    while (queue.Count > 0)
+                    {
+                        var (cx, cy) = queue.Dequeue();
+                        group.Add(_grid[cx, cy]);
+                        foreach (var (nx, ny) in new[] { (cx - 1, cy), (cx + 1, cy), (cx, cy - 1), (cx, cy + 1) })
+                        {
+                            if (nx < 0 || nx >= GridWidth || ny < 0 || ny >= GridHeight || visited.Contains((nx, ny)) || _grid[nx, ny].Type != CellType.Intersection) continue;
+                            visited.Add((nx, ny));
+                            queue.Enqueue((nx, ny));
+                        }
+                    }
+                    groups.Add(group);
+                }
+            }
+            return groups;
+        }
+        finally
+        {
+            _gridLock.ExitReadLock();
+        }
+    }
+
+    /// <summary>
+    /// Sends junction group centre positions to the renderer.
+    /// </summary>
+    public void SetJunctionGroupCenters(IEnumerable<(double cx, double cy)> centers)
+    {
+        _renderer.SetJunctionGroupCenters(centers);
+    }
+
+    /// <summary>
+    /// Switch between edit mode and sim mode.
+    /// </summary>
+    public void SetEditMode(bool isEditMode)
+    {
+        _renderer.IsEditMode = isEditMode;
+        _renderer.RenderGrid();
+    }
+
+    /// <summary>
+    /// Forces a full grid re-render.
+    /// </summary>
+    public void RenderGrid()
+    {
+        _renderer.RenderGrid();
+    }
+
     /// <summary>
     /// gridLock requires a Dispose to it frees the object
     /// </summary>
