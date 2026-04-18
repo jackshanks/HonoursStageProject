@@ -31,11 +31,10 @@ public class GridRenderer
 
     private readonly List<(double cx, double cy)> _junctionGroupCenters = [];
 
-    // Frozen pen objects to avoid new objects every render call
-    private static readonly Pen GridLinePen     = MakeFrozenPen(Brushes.LightGray, 0.3);
-    private static readonly Pen ArrowPen        = MakeFrozenPen(Brushes.Black, 1);
-    private static readonly Pen GiveWayPen      = MakeFrozenPen(Brushes.Red, 1.5);
-    private static readonly Pen SelectedNodePen = MakeFrozenPen(Brushes.Yellow, 2.0);
+    private static readonly Pen GridLinePen = MakeFrozenPen(new SolidColorBrush(Color.FromRgb(165, 160, 148)), 0.5);
+    private static readonly Pen ArrowPen = MakeFrozenPen(new SolidColorBrush(Color.FromRgb(32, 32, 32)), 1);
+    private static readonly Pen GiveWayPen = MakeFrozenPen(new SolidColorBrush(Color.FromRgb(132, 42, 42)), 1.5);
+    private static readonly Pen SelectedNodePen = MakeFrozenPen(new SolidColorBrush(Color.FromRgb(47, 79, 111)), 2.0);
 
     private static Pen MakeFrozenPen(Brush brush, double thickness)
     {
@@ -48,8 +47,7 @@ public class GridRenderer
     {
         _canvas = canvas;
         _gridVisual = new DrawingVisual();
-        
-        // DrawingVisual the solution to remove the grid being thousands of objects
+
         var host = new DrawingVisualHost(_gridVisual);
         Panel.SetZIndex(host, 0);
         _canvas.Children.Add(host);
@@ -61,37 +59,32 @@ public class GridRenderer
         _width = width;
         _height = height;
         _cellSizePixels = cellSizePixels;
-        
+
         _canvas.Width = width * cellSizePixels;
         _canvas.Height = height * cellSizePixels;
-        
-        // Pre-calculate arrow points for each direction to reuse
+
         PreCalculateArrowPoints(cellSizePixels);
-        
+
         RenderGrid();
     }
-    
+
     private void PreCalculateArrowPoints(double cellSize)
     {
         var center = cellSize / 2;
         var arrowSize = cellSize * 0.4;
-        
-        // North arrow
+
         _arrowPointsNorth[0] = new Point(center - arrowSize / 2, center + arrowSize / 2);
         _arrowPointsNorth[1] = new Point(center, center - arrowSize / 2);
         _arrowPointsNorth[2] = new Point(center + arrowSize / 2, center + arrowSize / 2);
-        
-        // East arrow
+
         _arrowPointsEast[0] = new Point(center - arrowSize / 2, center - arrowSize / 2);
         _arrowPointsEast[1] = new Point(center + arrowSize / 2, center);
         _arrowPointsEast[2] = new Point(center - arrowSize / 2, center + arrowSize / 2);
-        
-        // South arrow
+
         _arrowPointsSouth[0] = new Point(center - arrowSize / 2, center - arrowSize / 2);
         _arrowPointsSouth[1] = new Point(center, center + arrowSize / 2);
         _arrowPointsSouth[2] = new Point(center + arrowSize / 2, center - arrowSize / 2);
-        
-        // West arrow
+
         _arrowPointsWest[0] = new Point(center + arrowSize / 2, center - arrowSize / 2);
         _arrowPointsWest[1] = new Point(center - arrowSize / 2, center);
         _arrowPointsWest[2] = new Point(center + arrowSize / 2, center + arrowSize / 2);
@@ -103,30 +96,30 @@ public class GridRenderer
         {
             return;
         }
-        
+
         using var renderOpen = _gridVisual.RenderOpen();
-        
-        var emptyBrush = Brushes.White;
-        var roadBrush = Brushes.DarkGray;
-        var intersectionBrush = Brushes.Blue;
-        var arrowBrush = Brushes.Yellow;
-        
+
+        var emptyBrush = new SolidColorBrush(Color.FromRgb(248, 247, 242));
+        var roadBrush = new SolidColorBrush(Color.FromRgb(118, 118, 112));
+        var intersectionBrush = new SolidColorBrush(Color.FromRgb(137, 147, 156));
+        var arrowBrush = new SolidColorBrush(Color.FromRgb(245, 240, 214));
+
         for (var x = 0; x < _width; x++)
         {
             for (var y = 0; y < _height; y++)
             {
                 var cell = _grid[x, y];
                 var rect = new Rect(x * _cellSizePixels, y * _cellSizePixels, _cellSizePixels, _cellSizePixels);
-                
+
                 var brush = cell.Type switch
                 {
                     CellType.Road => roadBrush,
                     CellType.Intersection => intersectionBrush,
                     _ => emptyBrush
                 };
-                
+
                 renderOpen.DrawRectangle(brush, GridLinePen, rect);
-                
+
                 if (cell.Type == CellType.Road && cell.Direction != TrafficDirection.None)
                 {
                     DrawArrow(renderOpen, cell, x, y, arrowBrush, ArrowPen);
@@ -279,10 +272,10 @@ public class GridRenderer
         var cx = offsetX + _cellSizePixels / 2;
         var cy = offsetY + _cellSizePixels / 2;
         var half = _cellSizePixels * 0.22;
-        
-        var p0 = new Point(cx - half, cy - half * 0.6); // top-left
-        var p1 = new Point(cx + half, cy - half * 0.6); // top-right
-        var p2 = new Point(cx,        cy + half); // bottom point
+
+        var p0 = new Point(cx - half, cy - half * 0.6);
+        var p1 = new Point(cx + half, cy - half * 0.6);
+        var p2 = new Point(cx, cy + half);
 
         var geo = new StreamGeometry();
         using (var ctx = geo.Open())
@@ -294,17 +287,17 @@ public class GridRenderer
         geo.Freeze();
         dc.DrawGeometry(Brushes.White, GiveWayPen, geo);
     }
-    
+
     private void DrawGearIcon(DrawingContext dc, double pixelCx, double pixelCy)
     {
-        var fontSize = Math.Max(8.0, _cellSizePixels * 0.45);
+        var fontSize = Math.Max(8.0, _cellSizePixels * 0.35);
         var formatted = new FormattedText(
-            "⚙",
+            "J",
             CultureInfo.InvariantCulture,
             FlowDirection.LeftToRight,
             new Typeface("Segoe UI"),
             fontSize,
-            Brushes.White,
+            new SolidColorBrush(Color.FromRgb(35, 35, 35)),
             1.0);
 
         dc.DrawText(formatted, new Point(pixelCx - formatted.Width / 2, pixelCy - formatted.Height / 2));
@@ -318,9 +311,9 @@ public class GridRenderer
 
         var brush = phase switch
         {
-            TrafficLightPhase.Green => Brushes.LimeGreen,
-            TrafficLightPhase.Yellow => Brushes.Gold,
-            TrafficLightPhase.Red => Brushes.Red,
+            TrafficLightPhase.Green => new SolidColorBrush(Color.FromRgb(76, 138, 82)),
+            TrafficLightPhase.Yellow => new SolidColorBrush(Color.FromRgb(196, 156, 68)),
+            TrafficLightPhase.Red => new SolidColorBrush(Color.FromRgb(156, 70, 70)),
             _ => Brushes.Gray
         };
 
@@ -329,7 +322,6 @@ public class GridRenderer
 
     private void DrawSpawnIndicator(DrawingContext dc, int gridX, int gridY)
     {
-        // Small filled green upward triangle in the top-right corner
         var ox = gridX * _cellSizePixels;
         var oy = gridY * _cellSizePixels;
         var size = _cellSizePixels * 0.22;
@@ -345,7 +337,7 @@ public class GridRenderer
             ctx.LineTo(new Point(right - size / 2, top), isStroked: false, isSmoothJoin: false);
         }
         geo.Freeze();
-        dc.DrawGeometry(Brushes.LimeGreen, null, geo);
+        dc.DrawGeometry(new SolidColorBrush(Color.FromRgb(76, 138, 82)), null, geo);
     }
 
     private void DrawSpawnBacklogBadge(DrawingContext dc, int gridX, int gridY, double backlog)
@@ -353,7 +345,6 @@ public class GridRenderer
         var backlogCount = (int)Math.Floor(backlog);
         var label = backlogCount.ToString(CultureInfo.InvariantCulture);
 
-        // Show 0 as well so every spawn node has an explicit backlog indicator.
         var fontSize = Math.Max(9.0, _cellSizePixels * 0.28);
         var formattedText = new FormattedText(
             label,
@@ -361,7 +352,7 @@ public class GridRenderer
             FlowDirection.LeftToRight,
             new Typeface("Segoe UI"),
             fontSize,
-            Brushes.White,
+            new SolidColorBrush(Color.FromRgb(248, 247, 242)),
             1.0);
 
         var centerX = gridX * _cellSizePixels + _cellSizePixels * 0.26;
@@ -376,13 +367,12 @@ public class GridRenderer
             formattedText.Width + padding * 2,
             formattedText.Height + padding * 1.6);
 
-        dc.DrawRoundedRectangle(new SolidColorBrush(Color.FromArgb(205, 25, 25, 25)), null, badgeRect, 4, 4);
+        dc.DrawRectangle(new SolidColorBrush(Color.FromArgb(220, 58, 56, 50)), null, badgeRect);
         dc.DrawText(formattedText, new Point(textX, textY));
     }
 
     private void DrawExitIndicator(DrawingContext dc, int gridX, int gridY)
     {
-        // Small filled red downward triangle in the top-right corner
         var ox = gridX * _cellSizePixels;
         var oy = gridY * _cellSizePixels;
         var size = _cellSizePixels * 0.22;
@@ -398,7 +388,7 @@ public class GridRenderer
             ctx.LineTo(new Point(right - size / 2, top + size), isStroked: false, isSmoothJoin: false);
         }
         geo.Freeze();
-        dc.DrawGeometry(Brushes.Red, null, geo);
+        dc.DrawGeometry(new SolidColorBrush(Color.FromRgb(156, 70, 70)), null, geo);
     }
 
     private void DrawSelectedHighlight(DrawingContext dc, int gridX, int gridY)
@@ -421,15 +411,15 @@ public class GridRenderer
             TrafficDirection.West => _arrowPointsWest,
             _ => null
         };
-        
+
         if (points == null)
         {
             return;
         }
-        
+
         var offsetX = gridX * _cellSizePixels;
         var offsetY = gridY * _cellSizePixels;
-        
+
         var streamGeometry = new StreamGeometry();
         using (var ctx = streamGeometry.Open())
         {
@@ -438,7 +428,7 @@ public class GridRenderer
             ctx.LineTo(new Point(points[2].X + offsetX, points[2].Y + offsetY), true, false);
         }
         streamGeometry.Freeze();
-        
+
         dc.DrawGeometry(fill, stroke, streamGeometry);
     }
 }

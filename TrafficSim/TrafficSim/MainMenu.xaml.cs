@@ -15,15 +15,8 @@ public partial class MainMenu
         InitializeComponent();
 
         _prebuiltNetworks = GridSerialiser.GetPrebuiltNetworks();
-        foreach (var (displayName, _) in _prebuiltNetworks)
-        {
-            PrebuiltList.Items.Add(displayName);
-        }
-
-        if (_prebuiltNetworks.Count == 0)
-        {
-            BtnLoadPrebuilt.IsEnabled = false;
-        }
+        PrebuiltList.ItemsSource = _prebuiltNetworks.Select(network => network.DisplayName);
+        BtnLoadPrebuilt.IsEnabled = _prebuiltNetworks.Count > 0;
     }
 
     private void BtnNewNetwork_Click(object sender, RoutedEventArgs e)
@@ -41,16 +34,7 @@ public partial class MainMenu
 
         if (dialog.ShowDialog() != true) return;
 
-        try
-        {
-            var data = GridSerialiser.LoadFromFile(dialog.FileName);
-            OpenEditor(data);
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Error loading network: {ex.Message}", "Error",
-                MessageBoxButton.OK, MessageBoxImage.Error);
-        }
+        LoadGrid(() => GridSerialiser.LoadFromFile(dialog.FileName), "Error loading network");
     }
 
     private void BtnLoadPrebuilt_Click(object sender, RoutedEventArgs e)
@@ -68,14 +52,18 @@ public partial class MainMenu
         var index = PrebuiltList.SelectedIndex;
         if (index < 0 || index >= _prebuiltNetworks.Count) return;
 
+        LoadGrid(() => GridSerialiser.LoadPrebuilt(_prebuiltNetworks[index].ResourceName), "Error loading pre-built network");
+    }
+
+    private void LoadGrid(Func<GridData> loadAction, string errorMessage)
+    {
         try
         {
-            var data = GridSerialiser.LoadPrebuilt(_prebuiltNetworks[index].ResourceName);
-            OpenEditor(data);
+            OpenEditor(loadAction());
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Error loading pre-built network: {ex.Message}", "Error",
+            MessageBox.Show($"{errorMessage}: {ex.Message}", "Error",
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }

@@ -1,4 +1,6 @@
+using System.ComponentModel;
 using System.Diagnostics;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -11,90 +13,83 @@ using TrafficSim.Rendering;
 namespace TrafficSim;
 
 /// <summary>
-/// Interaction logic for physics and UI. Uses threading to try to increase performance with large numbers of cars
+/// Coordinates editor interactions, simulation state, and rendering updates.
 /// </summary>
 public partial class MainWindow
 {
     private readonly GridManager _gridManager;
     private readonly TrafficManager _trafficManager;
     private readonly CarRenderer _carRenderer;
+    private readonly List<CarRenderData> _renderBuffer = [];
+    private readonly Lock _physicsLock = new();
+    private readonly Stopwatch _fpsStopwatch = Stopwatch.StartNew();
+
+    private const double FixedTimeStep = 1.0 / 60.0;
+    private const double MaxAccumulatedTime = 0.1;
+
     private TimeSpan _lastRenderTime = TimeSpan.MinValue;
-    
     private Task? _physicsTask;
     private CancellationTokenSource? _physicsCancellationToken;
-    private readonly Lock _physicsLock = new();
-
-    // Fixed time-step physics config for pure logic
-    private const double FixedTimeStep = 1.0 / 60.0;
-    private const double MaxAccumulatedTime = 0.1; // Cap to amount of time passage to prevent spiral
     private double _accumulatedTime;
-
+    private double _simulationSpeed = 1.0;
+    private bool _collisionsEnabled;
     private bool _isDrawing;
     private Cell? _lastDrawnCell;
     private bool _isErasing;
     private Cell? _lastErasedCell;
-
-    private Cell? _selectedJunctionCell;
-    private bool _updatingGiveWayCheckboxes;
-
-    private record struct SimNodeSelection(NodeKind Kind, int GridX, int GridY);
-    private SimNodeSelection? _selectedSimNode;
-    private bool _updatingNodePanel;
-    
-    private double _simulationSpeed = 1.0;
-    private bool _collisionsEnabled;
-    
     private bool _isNetworkBuilt;
-    private readonly List<CarRenderData> _renderBuffer = new();
     private bool _isSimulationRunning;
     private bool _isClosing;
     private bool _closeReady;
-
-    // FPS tracking
-    private readonly Stopwatch _fpsStopwatch = Stopwatch.StartNew();
+    private bool _updatingNodePanel;
     private int _frameCount;
     private double _fps;
+
+    private record struct SimNodeSelection(NodeKind Kind, int GridX, int GridY);
+
+    private SimNodeSelection? _selectedSimNode;
+    private List<(double cx, double cy, List<Cell> cells)> _junctionGroups = [];
 
     public MainWindow(GridData? initialGrid = null)
     {
         InitializeComponent();
+
         _gridManager = new GridManager(GridCanvas);
         _trafficManager = new TrafficManager(_gridManager);
         _carRenderer = new CarRenderer(GridCanvas);
 
+        LoadInitialGrid(initialGrid);
+        WireUiEvents();
+        UpdateUiState();
+    }
+
+    private void LoadInitialGrid(GridData? initialGrid)
+    {
         try
         {
-            if (initialGrid != null)
-            {
-                TxtGridWidth.Text = initialGrid.GridWidth.ToString();
-                TxtGridHeight.Text = initialGrid.GridHeight.ToString();
-                var cellSizePixels = double.Parse(TxtCellSize.Text);
-                GridSerialiser.ApplyToGrid(initialGrid, _gridManager, cellSizePixels);
-            }
-            else
+            if (initialGrid == null)
             {
                 ParseAndCreateGrid();
+                return;
             }
+
+            TxtGridWidth.Text = initialGrid.GridWidth.ToString();
+            TxtGridHeight.Text = initialGrid.GridHeight.ToString();
+            GridSerialiser.ApplyToGrid(initialGrid, _gridManager, ReadCellSizePixels());
+            UpdateJunctionGroups();
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Error creating grid: {ex.Message}", "Error",
-                MessageBoxButton.OK, MessageBoxImage.Error);
+            ShowError($"Error creating grid: {ex.Message}");
         }
-        
+    }
+
+    private void WireUiEvents()
+    {
         _collisionsEnabled = ChkCollisions.IsChecked == true;
 
-        ChkCollisions.Checked += (_, _) => { lock (_physicsLock) { _collisionsEnabled = true; } };
-        ChkCollisions.Unchecked += (_, _) => { lock (_physicsLock) { _collisionsEnabled = false; } };
-
-        ChkGiveWayNorth.Checked   += GiveWayCheckbox_Changed;
-        ChkGiveWayNorth.Unchecked += GiveWayCheckbox_Changed;
-        ChkGiveWayEast.Checked    += GiveWayCheckbox_Changed;
-        ChkGiveWayEast.Unchecked  += GiveWayCheckbox_Changed;
-        ChkGiveWaySouth.Checked   += GiveWayCheckbox_Changed;
-        ChkGiveWaySouth.Unchecked += GiveWayCheckbox_Changed;
-        ChkGiveWayWest.Checked    += GiveWayCheckbox_Changed;
-        ChkGiveWayWest.Unchecked  += GiveWayCheckbox_Changed;
+        ChkCollisions.Checked += (_, _) => SetCollisionsEnabled(true);
+        ChkCollisions.Unchecked += (_, _) => SetCollisionsEnabled(false);
 
         CompositionTarget.Rendering += RenderLoop;
 
@@ -104,18 +99,25 @@ public partial class MainWindow
             {
                 _simulationSpeed = SliderSimSpeed.Value;
             }
+
             TxtSimSpeed.Text = $"{SliderSimSpeed.Value:F1}x";
         };
 
-        SliderSpawnInterval.ValueChanged  += OnSpawnIntervalSliderChanged;
-        SliderExitWeight.ValueChanged     += OnExitWeightSliderChanged;
-        SliderGreenDuration.ValueChanged  += OnTrafficLightSliderChanged;
+        SliderSpawnInterval.ValueChanged += OnSpawnIntervalSliderChanged;
+        SliderExitWeight.ValueChanged += OnExitWeightSliderChanged;
+        SliderGreenDuration.ValueChanged += OnTrafficLightSliderChanged;
         SliderYellowDuration.ValueChanged += OnTrafficLightSliderChanged;
         SliderAllRedDuration.ValueChanged += OnTrafficLightSliderChanged;
-
-        UpdateUiState();
     }
-    
+
+    private void SetCollisionsEnabled(bool enabled)
+    {
+        lock (_physicsLock)
+        {
+            _collisionsEnabled = enabled;
+        }
+    }
+
     private void UpdateUiState()
     {
         BtnBuildNetwork.IsEnabled = !_isSimulationRunning;
@@ -123,24 +125,31 @@ public partial class MainWindow
         BtnClear.IsEnabled = !_isSimulationRunning;
         BtnLoad.IsEnabled = !_isSimulationRunning;
 
+        var editingVisibility = _isNetworkBuilt ? Visibility.Collapsed : Visibility.Visible;
+        GridSetupCard.Visibility = editingVisibility;
+        RoadDrawingCard.Visibility = editingVisibility;
+
         SimRunControlsPanel.Visibility = _isNetworkBuilt ? Visibility.Visible : Visibility.Collapsed;
         BtnStartSim.IsEnabled = !_isSimulationRunning;
         BtnStopSim.IsEnabled = _isSimulationRunning;
+        StatusText.Text = GetStatusText();
+    }
 
+    private string GetStatusText()
+    {
         if (_isSimulationRunning)
         {
-            StatusText.Text = "Running · Left-click nodes to configure · Right-click to spawn";
+            return "Running. Left-click nodes to configure.";
         }
-        else if (_isNetworkBuilt)
+
+        if (_isNetworkBuilt)
         {
-            StatusText.Text = "Network built. Click ▶ Start to begin, or return to editing.";
+            return "Network built. Click Start to begin, or return to editing.";
         }
-        else
-        {
-            StatusText.Text = "Draw roads with left-click, then build network to start.";
-        }
+
+        return "Draw roads with left-click, then build network to start.";
     }
-    
+
     private void StartPhysicsThread()
     {
         _physicsCancellationToken = new CancellationTokenSource();
@@ -164,24 +173,16 @@ public partial class MainWindow
 
                     lock (_physicsLock)
                     {
-                        var collisionsEnabled = _collisionsEnabled;
                         var adjustedDeltaTime = deltaTime * _simulationSpeed;
-                        _accumulatedTime += adjustedDeltaTime;
-
-                        if (_accumulatedTime > MaxAccumulatedTime)
-                        {
-                            _accumulatedTime = MaxAccumulatedTime;
-                        }
+                        _accumulatedTime = Math.Min(_accumulatedTime + adjustedDeltaTime, MaxAccumulatedTime);
 
                         while (_accumulatedTime >= FixedTimeStep)
                         {
-                            _trafficManager.UpdatePhysics(FixedTimeStep, collisionsEnabled);
+                            _trafficManager.UpdatePhysics(FixedTimeStep, _collisionsEnabled);
                             _accumulatedTime -= FixedTimeStep;
                         }
                     }
 
-                    // Sleep for the remainder of the 16.67 ms frame budget so the thread
-                    // yields the CPU without over-sleeping (Task.Delay(1) sleeps ~15 ms on Windows).
                     var elapsed = physicsStopwatch.ElapsedTicks - frameStart;
                     var remaining = ticksPerFrame - elapsed;
                     if (remaining > 0)
@@ -212,19 +213,21 @@ public partial class MainWindow
             }
         }, token);
     }
-    
+
     private async Task StopPhysicsThreadAsync()
     {
         _physicsCancellationToken?.Cancel();
 
         if (_physicsTask != null)
-        { 
+        {
             await _physicsTask;
         }
 
         _physicsCancellationToken?.Dispose();
+        _physicsCancellationToken = null;
+        _physicsTask = null;
     }
-    
+
     private void RenderLoop(object? sender, EventArgs e)
     {
         if (e is RenderingEventArgs args)
@@ -233,11 +236,11 @@ public partial class MainWindow
             {
                 return;
             }
+
             _lastRenderTime = args.RenderingTime;
         }
 
         var pixelsPerMeter = _gridManager.GetPixelsPerMeter();
-
         _trafficManager.GetRenderData(_renderBuffer);
         _carRenderer.UpdateAllCarVisuals(_renderBuffer, pixelsPerMeter);
         CarCountText.Text = _renderBuffer.Count.ToString();
@@ -245,6 +248,7 @@ public partial class MainWindow
         if (_isNetworkBuilt)
         {
             NetworkInfoText.Text = _trafficManager.GetNetworkInfo();
+            _gridManager.SetSpawnBacklogs(_trafficManager.GetSpawnBacklogRenderData());
 
             if (_isSimulationRunning)
             {
@@ -252,22 +256,29 @@ public partial class MainWindow
             }
         }
 
+        UpdateFps();
+    }
+
+    private void UpdateFps()
+    {
         _frameCount++;
         var elapsed = _fpsStopwatch.Elapsed.TotalSeconds;
-        if (elapsed >= 0.5)
+        if (elapsed < 0.5)
         {
-            _fps = _frameCount / elapsed;
-            _frameCount = 0;
-            _fpsStopwatch.Restart();
-            FpsText.Text = $"FPS: {_fps:F0}";
+            return;
         }
+
+        _fps = _frameCount / elapsed;
+        _frameCount = 0;
+        _fpsStopwatch.Restart();
+        FpsText.Text = $"FPS: {_fps:F0}";
     }
 
     private void ParseAndCreateGrid()
     {
         var width = int.Parse(TxtGridWidth.Text);
         var height = int.Parse(TxtGridHeight.Text);
-        var cellSize = double.Parse(TxtCellSize.Text);
+        var cellSize = ReadCellSizePixels();
 
         if (width <= 0 || height <= 0 || cellSize <= 0)
         {
@@ -276,31 +287,25 @@ public partial class MainWindow
 
         _gridManager.CreateGrid(width, height, cellSize);
     }
-    
+
+    private double ReadCellSizePixels() => double.Parse(TxtCellSize.Text);
+
     private void BtnCreateGrid_Click(object sender, RoutedEventArgs e)
     {
         try
         {
             ParseAndCreateGrid();
-            _trafficManager.ClearNetwork();
-            _trafficManager.ClearTraffic();
-            _carRenderer.ClearAllVisuals();
-            ClearJunctionSelection();
-
-            _isNetworkBuilt = false;
-            NetworkInfoText.Text = "Network not built";
-            
+            ResetEditorState(clearGridOverlays: true);
+            UpdateJunctionGroups();
             UpdateUiState();
         }
         catch (ArgumentException ex)
         {
-            MessageBox.Show(ex.Message, "Invalid Input",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
+            ShowWarning(ex.Message, "Invalid Input");
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Error creating grid: {ex.Message}", "Error",
-                MessageBoxButton.OK, MessageBoxImage.Error);
+            ShowError($"Error creating grid: {ex.Message}");
         }
     }
 
@@ -308,43 +313,39 @@ public partial class MainWindow
     {
         if (!_gridManager.HasGrid())
         {
-            MessageBox.Show("Please create a grid first.", "No Grid",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
+            ShowWarning("Please create a grid first.", "No Grid");
             return;
         }
-        
+
         try
         {
             var success = BuildNetworkFromGrid(_gridManager.GridWidth, _gridManager.GridHeight);
+            _isNetworkBuilt = true;
+
+            _gridManager.SetEditMode(false);
+            _gridManager.SetGiveWayNodes(_trafficManager.GetGiveWayNodePositions());
+            PopulateSimNodeIndicators();
+            UpdateUiState();
 
             if (success)
             {
-                _isNetworkBuilt = true;
-                MessageBox.Show("Lane network built successfully!", "Success",
-                    MessageBoxButton.OK, MessageBoxImage.Information);
+                ShowInfo("Lane network built successfully!", "Success");
             }
             else
             {
-                MessageBox.Show("Warning: Network built but may have disconnected nodes.", "Warning",
-                    MessageBoxButton.OK, MessageBoxImage.Warning);
-                _isNetworkBuilt = true;
+                ShowWarning("Network built but may have disconnected nodes.", "Warning");
             }
-
-            _gridManager.SetGiveWayNodes(_trafficManager.GetGiveWayNodePositions());
-            UpdateUiState();
-            PopulateSimNodeIndicators();
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Error building network: {ex.Message}", "Error",
-                MessageBoxButton.OK, MessageBoxImage.Error);
+            ShowError($"Error building network: {ex.Message}");
         }
     }
-    
+
     private bool BuildNetworkFromGrid(int width, int height)
     {
         var grid = new Cell[width, height];
-        
+
         for (var x = 0; x < width; x++)
         {
             for (var y = 0; y < height; y++)
@@ -356,49 +357,48 @@ public partial class MainWindow
                 }
             }
         }
-        
+
         return _trafficManager.BuildNetwork(grid, width, height, _gridManager.CellSizeMeters);
     }
-    
+
     private void BtnStartSim_Click(object sender, RoutedEventArgs e)
     {
         if (!_isNetworkBuilt)
         {
-            MessageBox.Show("Please build the network first.", "Network Not Built",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
+            ShowWarning("Please build the network first.", "Network Not Built");
             return;
         }
-        
+
+        _trafficManager.StartStatistics();
+        BtnViewStatistics.Visibility = Visibility.Collapsed;
         _isSimulationRunning = true;
         StartPhysicsThread();
         UpdateUiState();
     }
-    
+
     private async void BtnStopSim_Click(object sender, RoutedEventArgs e)
     {
-        _isSimulationRunning = false;
+        await StopSimulationAsync(clearTraffic: false);
         ClearSimNodeSelection();
+        BtnViewStatistics.Visibility = Visibility.Visible;
         UpdateUiState();
-        await StopPhysicsThreadAsync();
+    }
+
+    private void BtnViewStatistics_Click(object sender, RoutedEventArgs e)
+    {
+        var stats = _trafficManager.GetFinalStatistics();
+        if (stats == null)
+        {
+            return;
+        }
+
+        new StatisticsWindow(stats) { Owner = this }.Show();
     }
 
     private async void BtnReturnToEditing_Click(object sender, RoutedEventArgs e)
     {
-        if (_isSimulationRunning)
-        {
-            _isSimulationRunning = false;
-            await StopPhysicsThreadAsync();
-            _trafficManager.ClearTraffic();
-            _carRenderer.ClearAllVisuals();
-        }
-
-        _isNetworkBuilt = false;
-        _trafficManager.ClearNetwork();
-        _gridManager.ClearGiveWayNodes();
-        _gridManager.ClearTrafficLightNodes();
-        ClearSimNodeIndicators();
-        NetworkInfoText.Text = "Network not built";
-        UpdateUiState();
+        await StopSimulationAsync(clearTraffic: true);
+        ResetToEditingMode();
     }
 
     private void BtnClear_Click(object sender, RoutedEventArgs e)
@@ -409,34 +409,68 @@ public partial class MainWindow
         }
 
         _gridManager.ClearAllCells();
-        _gridManager.ClearGiveWayNodes();
-        _gridManager.ClearTrafficLightNodes();
-        _trafficManager.ClearNetwork();
-        _trafficManager.ClearTraffic();
-        _carRenderer.ClearAllVisuals();
-        ClearJunctionSelection();
-        ClearSimNodeIndicators();
-
-        _isNetworkBuilt = false;
-        NetworkInfoText.Text = "Network not built";
-
+        ResetEditorState(clearGridOverlays: true);
+        UpdateJunctionGroups();
         UpdateUiState();
     }
 
-    private void GridCanvas_RightClick(object sender, MouseButtonEventArgs e)
+    private async Task StopSimulationAsync(bool clearTraffic)
     {
-        if (_isSimulationRunning && _isNetworkBuilt)
+        if (!_isSimulationRunning)
         {
-            var pos = e.GetPosition(GridCanvas);
-            var success = _trafficManager.SpawnCarAt(pos.X, pos.Y);
-            if (!success)
+            if (clearTraffic)
             {
-                StatusText.Text = "Cannot spawn car here. Click on a road with traffic flow.";
+                _trafficManager.ClearTraffic();
+                _carRenderer.ClearAllVisuals();
             }
+
             return;
         }
 
-        if (!_gridManager.HasGrid() || _isSimulationRunning)
+        _isSimulationRunning = false;
+        await StopPhysicsThreadAsync();
+
+        if (clearTraffic)
+        {
+            _trafficManager.ClearTraffic();
+            _carRenderer.ClearAllVisuals();
+        }
+    }
+
+    private void ResetToEditingMode()
+    {
+        _isNetworkBuilt = false;
+        _trafficManager.ClearNetwork();
+        _gridManager.ClearGiveWayNodes();
+        _gridManager.ClearTrafficLightNodes();
+        _gridManager.SetEditMode(true);
+        ClearSimNodeIndicators();
+        UpdateJunctionGroups();
+        NetworkInfoText.Text = "Network not built";
+        UpdateUiState();
+    }
+
+    private void ResetEditorState(bool clearGridOverlays)
+    {
+        _trafficManager.ClearNetwork();
+        _trafficManager.ClearTraffic();
+        _carRenderer.ClearAllVisuals();
+        _gridManager.SetEditMode(true);
+
+        if (clearGridOverlays)
+        {
+            _gridManager.ClearGiveWayNodes();
+            _gridManager.ClearTrafficLightNodes();
+        }
+
+        ClearSimNodeIndicators();
+        _isNetworkBuilt = false;
+        NetworkInfoText.Text = "Network not built";
+    }
+
+    private void GridCanvas_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (!_gridManager.HasGrid() || _isSimulationRunning || _isNetworkBuilt)
         {
             return;
         }
@@ -453,16 +487,29 @@ public partial class MainWindow
             return;
         }
 
+        var clickPosition = e.GetPosition(GridCanvas);
+
         if (_isSimulationRunning)
         {
-            var pos = e.GetPosition(GridCanvas);
-            SelectSimNode(pos.X, pos.Y);
+            SelectSimNode(clickPosition.X, clickPosition.Y);
+            return;
+        }
+
+        if (_isNetworkBuilt)
+        {
+            return;
+        }
+
+        var group = FindClickedJunctionGroup(clickPosition);
+        if (group != null)
+        {
+            OpenJunctionConfig(group);
             return;
         }
 
         _isDrawing = true;
         _lastDrawnCell = null;
-        DrawRoadAtPosition(e.GetPosition(GridCanvas));
+        DrawRoadAtPosition(clickPosition);
     }
 
     private void GridCanvas_MouseMove(object sender, MouseEventArgs e)
@@ -480,15 +527,25 @@ public partial class MainWindow
             StatusText.Text = GridManager.GetCellInfo(cell);
         }
 
-        if (_isDrawing && e.LeftButton == MouseButtonState.Pressed && !_isSimulationRunning && cell != _lastDrawnCell)
+        if (_isDrawing &&
+            e.LeftButton == MouseButtonState.Pressed &&
+            !_isSimulationRunning &&
+            !_isNetworkBuilt &&
+            cell != _lastDrawnCell)
         {
             DrawRoadAtPosition(position);
             _lastDrawnCell = cell;
         }
 
-        if (!_isErasing || e.RightButton != MouseButtonState.Pressed || _isSimulationRunning || cell == _lastErasedCell) return;
-        EraseAtPosition(position);
-        _lastErasedCell = cell;
+        if (_isErasing &&
+            e.RightButton == MouseButtonState.Pressed &&
+            !_isSimulationRunning &&
+            !_isNetworkBuilt &&
+            cell != _lastErasedCell)
+        {
+            EraseAtPosition(position);
+            _lastErasedCell = cell;
+        }
     }
 
     private void GridCanvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
@@ -516,55 +573,71 @@ public partial class MainWindow
             return;
         }
 
-        if (GetSelectedCellType() == CellType.Intersection)
+        if (IsJunctionModeSelected())
         {
-            if (cell.Type != CellType.Intersection)
-            {
-                _gridManager.SetCellTypeAndDirection(cell.X, cell.Y, CellType.Intersection, TrafficDirection.None);
-            }
-            cell.JunctionType = GetSelectedJunctionType();
-            SelectJunctionCell(cell);
+            ApplyJunctionToCell(cell);
             return;
         }
 
-        var selectedDirection = GetSelectedDirection();
+        ApplyRoadToCell(cell);
+    }
 
+    private void ApplyJunctionToCell(Cell cell)
+    {
+        if (cell.Type != CellType.Intersection)
+        {
+            _gridManager.SetCellTypeAndDirection(cell.X, cell.Y, CellType.Intersection, TrafficDirection.None);
+        }
+
+        cell.JunctionType = GetSelectedJunctionType();
+        UpdateJunctionGroups();
+    }
+
+    private void ApplyRoadToCell(Cell cell)
+    {
+        var previousType = cell.Type;
+        var direction = GetSelectedDirection();
         var speedLimit = GetSelectedSpeedLimit();
 
         switch (cell.Type)
         {
-            case CellType.Empty or CellType.Intersection:
-                _gridManager.SetCellTypeAndDirection(cell.X, cell.Y, CellType.Road, selectedDirection);
-                _gridManager.SetCellSpeedLimit(cell.X, cell.Y, speedLimit);
+            case CellType.Empty:
+            case CellType.Intersection:
+                _gridManager.SetCellTypeAndDirection(cell.X, cell.Y, CellType.Road, direction);
                 break;
             case CellType.Road:
-                _gridManager.SetCellDirection(cell.X, cell.Y, selectedDirection);
-                _gridManager.SetCellSpeedLimit(cell.X, cell.Y, speedLimit);
+                _gridManager.SetCellDirection(cell.X, cell.Y, direction);
                 break;
+        }
+
+        _gridManager.SetCellSpeedLimit(cell.X, cell.Y, speedLimit);
+
+        if (previousType == CellType.Intersection)
+        {
+            UpdateJunctionGroups();
         }
     }
 
-    private CellType GetSelectedCellType()
-    {
-        return RbIntersection.IsChecked == true ? CellType.Intersection : CellType.Road;
-    }
+    private bool IsJunctionModeSelected() => RbJunction.IsChecked == true;
 
     private JunctionType GetSelectedJunctionType()
     {
-        if (RbStop.IsChecked == true) return JunctionType.Stop;
-        if (RbTrafficLight.IsChecked == true) return JunctionType.TrafficLight;
-        return JunctionType.GiveWay;
+        return RbTrafficLight.IsChecked == true
+            ? JunctionType.TrafficLight
+            : JunctionType.GiveWay;
     }
 
     private int GetSelectedSpeedLimit()
     {
-        foreach (var rb in new[] { RbSpeed20, RbSpeed30, RbSpeed40, RbSpeed50, RbSpeed60, RbSpeed70 })
+        var speedButtons = new[] { RbSpeed20, RbSpeed30, RbSpeed40, RbSpeed50, RbSpeed60, RbSpeed70 };
+        foreach (var button in speedButtons)
         {
-            if (rb.IsChecked == true && rb.Tag is string tag && int.TryParse(tag, out var mph))
+            if (button.IsChecked == true && button.Tag is string tag && int.TryParse(tag, out var mph))
             {
                 return mph;
             }
         }
+
         return 30;
     }
 
@@ -576,93 +649,73 @@ public partial class MainWindow
         }
 
         var cell = _gridManager.GetCellFromPixel(position.X, position.Y);
-
-        if (cell?.Type is CellType.Road or CellType.Intersection)
+        if (cell == null)
         {
-            if (cell == _selectedJunctionCell)
-                ClearJunctionSelection();
+            return;
+        }
+
+        var wasIntersection = cell.Type == CellType.Intersection;
+        if (cell.Type is CellType.Road or CellType.Intersection)
+        {
             _gridManager.SetCellTypeAndDirection(cell.X, cell.Y, CellType.Empty, TrafficDirection.None);
+        }
+
+        if (wasIntersection)
+        {
+            UpdateJunctionGroups();
         }
     }
 
     private TrafficDirection GetSelectedDirection()
     {
-        if (RbNorth.IsChecked == true)
-        {
-            return TrafficDirection.North;
-        }
-        if (RbEast.IsChecked == true)
-        {
-            return TrafficDirection.East;
-        }
-        if (RbSouth.IsChecked == true)
-        {
-            return TrafficDirection.South;
-        }
+        if (RbNorth.IsChecked == true) return TrafficDirection.North;
+        if (RbEast.IsChecked == true) return TrafficDirection.East;
+        if (RbSouth.IsChecked == true) return TrafficDirection.South;
         return RbWest.IsChecked == true ? TrafficDirection.West : TrafficDirection.East;
     }
 
-    private void SelectJunctionCell(Cell cell)
+    private void UpdateJunctionGroups()
     {
-        _selectedJunctionCell = cell;
-        TxtSelectedJunction.Text = $"({cell.X}, {cell.Y})";
+        _junctionGroups = _gridManager.ComputeJunctionGroups()
+            .Select(cells =>
+            {
+                var centerX = cells.Average(cell => (cell.X + 0.5) * _gridManager.CellSizePixels);
+                var centerY = cells.Average(cell => (cell.Y + 0.5) * _gridManager.CellSizePixels);
+                return (centerX, centerY, cells);
+            })
+            .ToList();
 
-        // Reflect the cell's junction type in the radio buttons
-        RbGiveWay.IsChecked = cell.JunctionType == JunctionType.GiveWay;
-        RbStop.IsChecked = cell.JunctionType == JunctionType.Stop;
-        RbTrafficLight.IsChecked = cell.JunctionType == JunctionType.TrafficLight;
-
-        _updatingGiveWayCheckboxes = true;
-        ChkGiveWayNorth.IsChecked = cell.GiveWayDirections.Contains(TrafficDirection.North);
-        ChkGiveWayEast.IsChecked  = cell.GiveWayDirections.Contains(TrafficDirection.East);
-        ChkGiveWaySouth.IsChecked = cell.GiveWayDirections.Contains(TrafficDirection.South);
-        ChkGiveWayWest.IsChecked  = cell.GiveWayDirections.Contains(TrafficDirection.West);
-        _updatingGiveWayCheckboxes = false;
+        _gridManager.SetJunctionGroupCenters(_junctionGroups.Select(group => (group.cx, group.cy)));
     }
 
-    private void GiveWayCheckbox_Changed(object sender, RoutedEventArgs e)
+    private List<Cell>? FindClickedJunctionGroup(Point pixelPosition)
     {
-        if (_updatingGiveWayCheckboxes || _selectedJunctionCell == null)
+        var hitRadius = _gridManager.CellSizePixels * 0.5;
+        foreach (var (centerX, centerY, cells) in _junctionGroups)
         {
-            return;
+            if (Math.Abs(pixelPosition.X - centerX) < hitRadius &&
+                Math.Abs(pixelPosition.Y - centerY) < hitRadius)
+            {
+                return cells;
+            }
         }
-        UpdateGiveWayDirection(TrafficDirection.North, ChkGiveWayNorth.IsChecked == true);
-        UpdateGiveWayDirection(TrafficDirection.East,  ChkGiveWayEast.IsChecked  == true);
-        UpdateGiveWayDirection(TrafficDirection.South, ChkGiveWaySouth.IsChecked == true);
-        UpdateGiveWayDirection(TrafficDirection.West,  ChkGiveWayWest.IsChecked  == true);
+
+        return null;
     }
 
-    private void UpdateGiveWayDirection(TrafficDirection dir, bool active)
+    private void OpenJunctionConfig(List<Cell> cells)
     {
-        if (_selectedJunctionCell == null)
-        {
-            return;
-        }
-        if (active)
-        {
-            _selectedJunctionCell.GiveWayDirections.Add(dir);
-        }
-        else
-        {
-            _selectedJunctionCell.GiveWayDirections.Remove(dir);
-        }
+        var dialog = new JunctionConfigWindow(cells) { Owner = this };
+        dialog.ShowDialog();
+        _gridManager.RenderGrid();
     }
 
-    private void ClearJunctionSelection()
-    {
-        _selectedJunctionCell = null;
-        TxtSelectedJunction.Text = "(none — click a junction)";
-        _updatingGiveWayCheckboxes = true;
-        ChkGiveWayNorth.IsChecked = false;
-        ChkGiveWayEast.IsChecked  = false;
-        ChkGiveWaySouth.IsChecked = false;
-        ChkGiveWayWest.IsChecked  = false;
-        _updatingGiveWayCheckboxes = false;
-    }
-    
     private void BtnSave_Click(object sender, RoutedEventArgs e)
     {
-        if (!_gridManager.HasGrid()) return;
+        if (!_gridManager.HasGrid())
+        {
+            return;
+        }
 
         var dialog = new SaveFileDialog
         {
@@ -671,18 +724,20 @@ public partial class MainWindow
             Title = "Save Road Network"
         };
 
-        if (dialog.ShowDialog() != true) return;
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
 
         try
         {
             var data = GridSerialiser.ExtractGridData(_gridManager);
             GridSerialiser.SaveToFile(data, dialog.FileName);
-            StatusText.Text = $"Network saved to {System.IO.Path.GetFileName(dialog.FileName)}";
+            StatusText.Text = $"Network saved to {Path.GetFileName(dialog.FileName)}";
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Error saving network: {ex.Message}", "Error",
-                MessageBoxButton.OK, MessageBoxImage.Error);
+            ShowError($"Error saving network: {ex.Message}");
         }
     }
 
@@ -694,58 +749,41 @@ public partial class MainWindow
             Title = "Load Road Network"
         };
 
-        if (dialog.ShowDialog() != true) return;
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
 
         try
         {
-            if (_isSimulationRunning)
-            {
-                _isSimulationRunning = false;
-                await StopPhysicsThreadAsync();
-            }
+            await StopSimulationAsync(clearTraffic: false);
 
             var data = GridSerialiser.LoadFromFile(dialog.FileName);
             TxtGridWidth.Text = data.GridWidth.ToString();
             TxtGridHeight.Text = data.GridHeight.ToString();
-            var cellSizePixels = double.Parse(TxtCellSize.Text);
-            GridSerialiser.ApplyToGrid(data, _gridManager, cellSizePixels);
+            GridSerialiser.ApplyToGrid(data, _gridManager, ReadCellSizePixels());
 
-            _trafficManager.ClearNetwork();
-            _trafficManager.ClearTraffic();
-            _carRenderer.ClearAllVisuals();
-            _gridManager.ClearGiveWayNodes();
-            _gridManager.ClearTrafficLightNodes();
-            ClearJunctionSelection();
-            ClearSimNodeIndicators();
-
-            _isNetworkBuilt = false;
-            NetworkInfoText.Text = "Network not built";
-            StatusText.Text = $"Loaded {System.IO.Path.GetFileName(dialog.FileName)}";
+            ResetEditorState(clearGridOverlays: true);
+            UpdateJunctionGroups();
+            StatusText.Text = $"Loaded {Path.GetFileName(dialog.FileName)}";
             UpdateUiState();
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Error loading network: {ex.Message}", "Error",
-                MessageBoxButton.OK, MessageBoxImage.Error);
+            ShowError($"Error loading network: {ex.Message}");
         }
     }
 
     private async void BtnMainMenu_Click(object sender, RoutedEventArgs e)
     {
-        if (_isSimulationRunning)
-        {
-            _isSimulationRunning = false;
-            await StopPhysicsThreadAsync();
-            _trafficManager.ClearTraffic();
-            _carRenderer.ClearAllVisuals();
-        }
+        await StopSimulationAsync(clearTraffic: true);
 
         var menu = new MainMenu();
         menu.Show();
         Close();
     }
 
-    protected override async void OnClosing(System.ComponentModel.CancelEventArgs e)
+    protected override async void OnClosing(CancelEventArgs e)
     {
         if (_closeReady)
         {
@@ -754,17 +792,15 @@ public partial class MainWindow
             return;
         }
 
-        // Cancel any re-entrant close events while async cleanup is in progress.
         e.Cancel = true;
         if (_isClosing)
         {
             return;
         }
 
-        // Defer the close to await the physics task without blocking the UI thread.
         _isClosing = true;
-
         CompositionTarget.Rendering -= RenderLoop;
+
         if (_isSimulationRunning)
         {
             await StopPhysicsThreadAsync();
@@ -773,8 +809,6 @@ public partial class MainWindow
         _closeReady = true;
         Dispatcher.BeginInvoke(new Action(Close));
     }
-
-    // ── Per-node simulation controls ─────────────────────────────────────────
 
     private void SelectSimNode(double pixelX, double pixelY)
     {
@@ -785,9 +819,9 @@ public partial class MainWindow
             return;
         }
 
-        var (kind, gx, gy) = hit.Value;
-        _selectedSimNode = new SimNodeSelection(kind, gx, gy);
-        _gridManager.SetSelectedNode(gx, gy);
+        var (kind, gridX, gridY) = hit.Value;
+        _selectedSimNode = new SimNodeSelection(kind, gridX, gridY);
+        _gridManager.SetSelectedNode(gridX, gridY);
         UpdateSelectedNodePanel();
     }
 
@@ -801,45 +835,29 @@ public partial class MainWindow
     private void UpdateSelectedNodePanel()
     {
         TxtNoNodeSelected.Visibility = _selectedSimNode == null ? Visibility.Visible : Visibility.Collapsed;
-        PanelSpawnNode.Visibility     = Visibility.Collapsed;
-        PanelExitNode.Visibility      = Visibility.Collapsed;
-        PanelTrafficLight.Visibility  = Visibility.Collapsed;
+        PanelSpawnNode.Visibility = Visibility.Collapsed;
+        PanelExitNode.Visibility = Visibility.Collapsed;
+        PanelTrafficLight.Visibility = Visibility.Collapsed;
 
-        if (_selectedSimNode == null) return;
+        if (_selectedSimNode == null)
+        {
+            return;
+        }
 
         _updatingNodePanel = true;
         try
         {
-            var (kind, gx, gy) = _selectedSimNode.Value;
+            var (kind, gridX, gridY) = _selectedSimNode.Value;
             switch (kind)
             {
                 case NodeKind.Spawn:
-                    PanelSpawnNode.Visibility = Visibility.Visible;
-                    TxtSelectedSpawnNode.Text = $"SPAWN NODE ({gx}, {gy})";
-                    var interval = _trafficManager.GetSpawnInterval(gx, gy);
-                    SliderSpawnInterval.Value = interval;
-                    TxtSpawnInterval.Text = $"{interval:F1} s";
+                    ShowSpawnNodePanel(gridX, gridY);
                     break;
                 case NodeKind.Exit:
-                    PanelExitNode.Visibility = Visibility.Visible;
-                    TxtSelectedExitNode.Text = $"EXIT NODE ({gx}, {gy})";
-                    var weight = _trafficManager.GetExitNodeWeight(gx, gy);
-                    SliderExitWeight.Value = weight;
-                    TxtExitWeight.Text = $"{weight:F1}";
+                    ShowExitNodePanel(gridX, gridY);
                     break;
                 case NodeKind.TrafficLight:
-                    PanelTrafficLight.Visibility = Visibility.Visible;
-                    TxtSelectedTrafficLight.Text = $"JUNCTION ({gx}, {gy})";
-                    var timings = _trafficManager.GetTrafficLightTimings(gx, gy);
-                    if (timings.HasValue)
-                    {
-                        SliderGreenDuration.Value  = timings.Value.green;
-                        SliderYellowDuration.Value = timings.Value.yellow;
-                        SliderAllRedDuration.Value = timings.Value.allRed;
-                        TxtGreenDuration.Text  = $"{timings.Value.green:F0} s";
-                        TxtYellowDuration.Text = $"{timings.Value.yellow:F1} s";
-                        TxtAllRedDuration.Text = $"{timings.Value.allRed:F1} s";
-                    }
+                    ShowTrafficLightPanel(gridX, gridY);
                     break;
             }
         }
@@ -849,48 +867,127 @@ public partial class MainWindow
         }
     }
 
+    private void ShowSpawnNodePanel(int gridX, int gridY)
+    {
+        PanelSpawnNode.Visibility = Visibility.Visible;
+        TxtSelectedSpawnNode.Text = $"SPAWN NODE ({gridX}, {gridY})";
+        var rate = _trafficManager.GetSpawnRate(gridX, gridY);
+        SliderSpawnInterval.Value = rate;
+        TxtSpawnInterval.Text = $"{rate:F0} cars/min";
+    }
+
+    private void ShowExitNodePanel(int gridX, int gridY)
+    {
+        PanelExitNode.Visibility = Visibility.Visible;
+        TxtSelectedExitNode.Text = $"EXIT NODE ({gridX}, {gridY})";
+        var weight = _trafficManager.GetExitNodeWeight(gridX, gridY);
+        SliderExitWeight.Value = weight;
+        TxtExitWeight.Text = $"{weight:F1}";
+    }
+
+    private void ShowTrafficLightPanel(int gridX, int gridY)
+    {
+        PanelTrafficLight.Visibility = Visibility.Visible;
+        TxtSelectedTrafficLight.Text = $"JUNCTION ({gridX}, {gridY})";
+
+        var timings = _trafficManager.GetTrafficLightTimings(gridX, gridY);
+        if (!timings.HasValue)
+        {
+            return;
+        }
+
+        SliderGreenDuration.Value = timings.Value.green;
+        SliderYellowDuration.Value = timings.Value.yellow;
+        SliderAllRedDuration.Value = timings.Value.allRed;
+        TxtGreenDuration.Text = $"{timings.Value.green:F0} s";
+        TxtYellowDuration.Text = $"{timings.Value.yellow:F1} s";
+        TxtAllRedDuration.Text = $"{timings.Value.allRed:F1} s";
+    }
+
     private void PopulateSimNodeIndicators()
     {
         var spawnNodes = _trafficManager.GetSpawnNodeInfos();
-        var exitNodes  = _trafficManager.GetExitNodeInfos();
-        _gridManager.SetSpawnNodes(spawnNodes.Select(n => (n.gridX, n.gridY)));
-        _gridManager.SetExitNodes(exitNodes.Select(n => (n.gridX, n.gridY)));
+        var exitNodes = _trafficManager.GetExitNodeInfos();
+        _gridManager.SetSpawnNodes(spawnNodes.Select(node => (node.gridX, node.gridY)));
+        _gridManager.SetExitNodes(exitNodes.Select(node => (node.gridX, node.gridY)));
     }
 
     private void ClearSimNodeIndicators()
     {
         ClearSimNodeSelection();
+        _gridManager.ClearSpawnBacklogs();
         _gridManager.ClearSpawnNodes();
         _gridManager.ClearExitNodes();
     }
 
     private void OnSpawnIntervalSliderChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
-        if (_updatingNodePanel) return;
-        TxtSpawnInterval.Text = $"{SliderSpawnInterval.Value:F1} s";
+        if (_updatingNodePanel)
+        {
+            return;
+        }
+
+        TxtSpawnInterval.Text = $"{SliderSpawnInterval.Value:F0} cars/min";
         if (_selectedSimNode?.Kind == NodeKind.Spawn)
-            _trafficManager.SetSpawnInterval(
-                _selectedSimNode.Value.GridX, _selectedSimNode.Value.GridY, SliderSpawnInterval.Value);
+        {
+            _trafficManager.SetSpawnRate(
+                _selectedSimNode.Value.GridX,
+                _selectedSimNode.Value.GridY,
+                SliderSpawnInterval.Value);
+        }
     }
 
     private void OnExitWeightSliderChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
-        if (_updatingNodePanel) return;
+        if (_updatingNodePanel)
+        {
+            return;
+        }
+
         TxtExitWeight.Text = $"{SliderExitWeight.Value:F1}";
         if (_selectedSimNode?.Kind == NodeKind.Exit)
+        {
             _trafficManager.SetExitNodeWeight(
-                _selectedSimNode.Value.GridX, _selectedSimNode.Value.GridY, SliderExitWeight.Value);
+                _selectedSimNode.Value.GridX,
+                _selectedSimNode.Value.GridY,
+                SliderExitWeight.Value);
+        }
     }
 
     private void OnTrafficLightSliderChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
-        if (_updatingNodePanel) return;
-        TxtGreenDuration.Text  = $"{SliderGreenDuration.Value:F0} s";
+        if (_updatingNodePanel)
+        {
+            return;
+        }
+
+        TxtGreenDuration.Text = $"{SliderGreenDuration.Value:F0} s";
         TxtYellowDuration.Text = $"{SliderYellowDuration.Value:F1} s";
         TxtAllRedDuration.Text = $"{SliderAllRedDuration.Value:F1} s";
+
         if (_selectedSimNode?.Kind == NodeKind.TrafficLight)
+        {
             _trafficManager.SetTrafficLightTimings(
-                _selectedSimNode.Value.GridX, _selectedSimNode.Value.GridY,
-                SliderGreenDuration.Value, SliderYellowDuration.Value, SliderAllRedDuration.Value);
+                _selectedSimNode.Value.GridX,
+                _selectedSimNode.Value.GridY,
+                SliderGreenDuration.Value,
+                SliderYellowDuration.Value,
+                SliderAllRedDuration.Value);
+        }
+    }
+
+    private static void ShowInfo(string message, string title)
+    {
+        MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private static void ShowWarning(string message, string title)
+    {
+        MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Warning);
+    }
+
+    private static void ShowError(string message)
+    {
+        MessageBox.Show(message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
     }
 }

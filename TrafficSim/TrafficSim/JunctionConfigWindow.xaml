@@ -1,0 +1,108 @@
+<Window x:Class="TrafficSim.JunctionConfigWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Junction Configuration"
+        Width="380" SizeToContent="Height"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource WindowBackground}" FontFamily="Segoe UI">
+    <Border Margin="16" Style="{StaticResource ControlCard}">
+        <StackPanel>
+
+            <TextBlock x:Name="TxtJunctionHeader" Text="Junction (0, 0)"
+                       FontSize="14" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" Margin="0,0,0,14"/>
+
+            <TextBlock Text="JUNCTION TYPE" Style="{StaticResource SectionLabel}"/>
+            <Grid Margin="0,0,0,14">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <RadioButton Grid.Column="0" x:Name="DlgRbGiveWay" Content="Give Way"
+                             GroupName="DlgJunctionType" IsChecked="True"
+                             Checked="DlgJunctionType_Changed"
+                             Style="{StaticResource SegmentedRadio}"/>
+                <RadioButton Grid.Column="1" x:Name="DlgRbTrafficLight" Content="T. Light"
+                             GroupName="DlgJunctionType"
+                             Checked="DlgJunctionType_Changed"
+                             Style="{StaticResource SegmentedRadio}"/>
+            </Grid>
+
+            <StackPanel x:Name="GiveWaySection" Margin="0,0,0,14">
+                <TextBlock Text="GIVE WAY DIRECTIONS" Style="{StaticResource SectionLabel}"/>
+                <TextBlock Text="Approaching traffic from checked directions must yield to others."
+                           Foreground="{StaticResource TextSecondary}" FontSize="10" Margin="0,0,0,8" TextWrapping="Wrap"/>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="4"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <CheckBox Grid.Row="0" Grid.Column="0" x:Name="DlgChkGWNorth" Content="North"
+                              Margin="0,0,4,0"/>
+                    <CheckBox Grid.Row="0" Grid.Column="1" x:Name="DlgChkGWEast" Content="East"/>
+                    <CheckBox Grid.Row="2" Grid.Column="0" x:Name="DlgChkGWSouth" Content="South"
+                              Margin="0,0,4,0"/>
+                    <CheckBox Grid.Row="2" Grid.Column="1" x:Name="DlgChkGWWest" Content="West"/>
+                </Grid>
+            </StackPanel>
+
+            <TextBlock Text="TURN RESTRICTIONS" Style="{StaticResource SectionLabel}"/>
+            <TextBlock Text="Checked means allowed. Unchecked means blocked. U-turns remain blocked."
+                       Foreground="{StaticResource TextSecondary}" FontSize="10" Margin="0,0,0,4" TextWrapping="Wrap"/>
+            <TextBlock Text="Rows are incoming directions. Columns are outgoing directions."
+                       Foreground="{StaticResource TextSecondary}" FontSize="9" Margin="0,4,0,4"/>
+            <Grid Margin="0,0,0,16">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="24"/>
+                    <RowDefinition Height="24"/>
+                    <RowDefinition Height="24"/>
+                    <RowDefinition Height="24"/>
+                    <RowDefinition Height="24"/>
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="32"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Row="0" Grid.Column="1" Text="N" FontSize="10" Foreground="{StaticResource TextSecondary}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <TextBlock Grid.Row="0" Grid.Column="2" Text="E" FontSize="10" Foreground="{StaticResource TextSecondary}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <TextBlock Grid.Row="0" Grid.Column="3" Text="S" FontSize="10" Foreground="{StaticResource TextSecondary}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <TextBlock Grid.Row="0" Grid.Column="4" Text="W" FontSize="10" Foreground="{StaticResource TextSecondary}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="N" FontSize="10" Foreground="{StaticResource TextSecondary}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <CheckBox Grid.Row="1" Grid.Column="1" x:Name="DlgChkTurnNN" IsChecked="True" HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip="North to North (straight through)"/>
+                <CheckBox Grid.Row="1" Grid.Column="2" x:Name="DlgChkTurnNE" IsChecked="True" HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip="North to East"/>
+                <CheckBox Grid.Row="1" Grid.Column="4" x:Name="DlgChkTurnNW" IsChecked="True" HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip="North to West"/>
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="E" FontSize="10" Foreground="{StaticResource TextSecondary}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <CheckBox Grid.Row="2" Grid.Column="1" x:Name="DlgChkTurnEN" IsChecked="True" HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip="East to North"/>
+                <CheckBox Grid.Row="2" Grid.Column="2" x:Name="DlgChkTurnEE" IsChecked="True" HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip="East to East (straight through)"/>
+                <CheckBox Grid.Row="2" Grid.Column="3" x:Name="DlgChkTurnES" IsChecked="True" HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip="East to South"/>
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="S" FontSize="10" Foreground="{StaticResource TextSecondary}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <CheckBox Grid.Row="3" Grid.Column="2" x:Name="DlgChkTurnSE" IsChecked="True" HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip="South to East"/>
+                <CheckBox Grid.Row="3" Grid.Column="3" x:Name="DlgChkTurnSS" IsChecked="True" HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip="South to South (straight through)"/>
+                <CheckBox Grid.Row="3" Grid.Column="4" x:Name="DlgChkTurnSW" IsChecked="True" HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip="South to West"/>
+                <TextBlock Grid.Row="4" Grid.Column="0" Text="W" FontSize="10" Foreground="{StaticResource TextSecondary}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <CheckBox Grid.Row="4" Grid.Column="1" x:Name="DlgChkTurnWN" IsChecked="True" HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip="West to North"/>
+                <CheckBox Grid.Row="4" Grid.Column="3" x:Name="DlgChkTurnWS" IsChecked="True" HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip="West to South"/>
+                <CheckBox Grid.Row="4" Grid.Column="4" x:Name="DlgChkTurnWW" IsChecked="True" HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip="West to West (straight through)"/>
+            </Grid>
+
+            <Grid Margin="0,0,0,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="8"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Button Grid.Column="0" Content="OK" Click="BtnOk_Click" Margin="0"/>
+                <Button Grid.Column="2" Content="Cancel" Click="BtnCancel_Click" Margin="0"/>
+            </Grid>
+
+        </StackPanel>
+    </Border>
+</Window>

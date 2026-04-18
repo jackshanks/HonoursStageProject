@@ -2,56 +2,40 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Traffic Simulator" Height="520" Width="480"
-        Background="{StaticResource BgDark}" FontFamily="Segoe UI"
+        Background="{StaticResource WindowBackground}" FontFamily="Segoe UI"
         WindowStartupLocation="CenterScreen" ResizeMode="CanMinimize">
 
-    <Grid>
-        <StackPanel VerticalAlignment="Center" Margin="40">
+    <Grid Margin="24">
+        <Border Style="{StaticResource ControlCard}" VerticalAlignment="Center" Padding="20">
+            <StackPanel>
+                <TextBlock Text="Traffic Simulator" FontSize="24" FontWeight="Bold"
+                           Foreground="{StaticResource TextPrimary}"
+                           TextAlignment="Center"
+                           Margin="0,0,0,8"/>
+                <TextBlock Text="Create a new road layout or reopen an existing one."
+                           Foreground="{StaticResource TextSecondary}"
+                           TextAlignment="Center"
+                           Margin="0,0,0,20"/>
 
-            <TextBlock Text="TRAFFIC SIMULATOR" FontSize="28" FontWeight="Bold"
-                       Foreground="{StaticResource AccentColor}" TextAlignment="Center"
-                       Margin="0,0,0,30"/>
+                <Button x:Name="BtnNewNetwork" Content="New Network"
+                        Click="BtnNewNetwork_Click"
+                        FontSize="14" Padding="12,7" Margin="0,0,0,8"/>
 
-            <!-- New Network -->
-            <Button x:Name="BtnNewNetwork" Content="New Network"
-                    Click="BtnNewNetwork_Click"
-                    Background="{StaticResource AccentColor}"
-                    FontSize="16" Padding="14,12" Margin="0,0,0,10"/>
+                <Button x:Name="BtnLoadNetwork" Content="Load Network"
+                        Click="BtnLoadNetwork_Click"
+                        FontSize="14" Padding="12,7" Margin="0,0,0,12"/>
 
-            <!-- Load Network -->
-            <Button x:Name="BtnLoadNetwork" Content="Load Network"
-                    Click="BtnLoadNetwork_Click"
-                    FontSize="16" Padding="14,12" Margin="0,0,0,10"/>
-
-            <!-- Pre-built Networks -->
-            <Border Style="{StaticResource ControlCard}" Margin="0,10,0,0">
-                <StackPanel>
-                    <TextBlock Text="PRE-BUILT NETWORKS" Style="{StaticResource SectionLabel}"/>
-                    <ListBox x:Name="PrebuiltList"
-                             Background="#333337" Foreground="White"
-                             BorderThickness="0" MaxHeight="180"
-                             MouseDoubleClick="PrebuiltList_DoubleClick">
-                        <ListBox.ItemContainerStyle>
-                            <Style TargetType="ListBoxItem">
-                                <Setter Property="Foreground" Value="White"/>
-                                <Setter Property="Padding" Value="8,6"/>
-                                <Setter Property="Cursor" Value="Hand"/>
-                                <Style.Triggers>
-                                    <Trigger Property="IsSelected" Value="True">
-                                        <Setter Property="Background" Value="#007ACC"/>
-                                    </Trigger>
-                                    <Trigger Property="IsMouseOver" Value="True">
-                                        <Setter Property="Background" Value="#505055"/>
-                                    </Trigger>
-                                </Style.Triggers>
-                            </Style>
-                        </ListBox.ItemContainerStyle>
-                    </ListBox>
-                    <Button x:Name="BtnLoadPrebuilt" Content="Open Selected"
-                            Click="BtnLoadPrebuilt_Click" Margin="0,8,0,0"/>
-                </StackPanel>
-            </Border>
-
-        </StackPanel>
+                <Border Style="{StaticResource ControlCard}" Margin="0">
+                    <StackPanel>
+                        <TextBlock Text="PRE-BUILT NETWORKS" Style="{StaticResource SectionLabel}"/>
+                        <ListBox x:Name="PrebuiltList"
+                                 MaxHeight="180"
+                                 MouseDoubleClick="PrebuiltList_DoubleClick"/>
+                        <Button x:Name="BtnLoadPrebuilt" Content="Open Selected"
+                                Click="BtnLoadPrebuilt_Click" Margin="0,8,0,0"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </Border>
     </Grid>
 </Window>

@@ -26,7 +26,6 @@ public enum TrafficDirection
 public enum JunctionType
 {
     GiveWay,
-    Stop,
     TrafficLight
 }
 

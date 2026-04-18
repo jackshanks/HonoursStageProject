@@ -1,5 +1,5 @@
 using TrafficSim.Models;
-using static TrafficSim.Utility.TrafficDirectionUtility;
+using static TrafficSim.Utility.TrafficUtility;
 
 namespace TrafficSim.Managers;
 
@@ -32,10 +32,15 @@ public static class NetworkManager
                 {
                     continue;
                 }
+                // Only create nodes at segment boundaries like change in directions e.t.c.
+                if (!IsSegmentBoundary(grid, width, height, x, y, cell.Direction))
+                {
+                    continue;
+                }
                 var centerX = cell.RealWorldX + cellSizeMeters / 2.0;
                 var centerY = cell.RealWorldY + cellSizeMeters / 2.0;
-                
-                // Creates a new traffic node at the centre of all road cells
+
+                // Creates a new traffic node at the centre of road cells at segment boundaries
                 var node = new TrafficNode(centerX, centerY, x, y);
                 network.AddNode(node);
                 nodeMap[(x, y)] = node;
@@ -46,9 +51,8 @@ public static class NetworkManager
         {
             for (var y = 0; y < height; y++)
             {
-                // Connects adjacent nodes into a "lane"
                 var cell = grid[x, y];
-                
+
                 if (cell.Type != CellType.Road || cell.Direction == TrafficDirection.None)
                 {
                     continue;
@@ -57,35 +61,53 @@ public static class NetworkManager
                 {
                     continue;
                 }
-                var (neighborX, neighborY) = GetNeighborCoords(x, y, cell.Direction);
-                if (neighborX < 0 || neighborX >= width || neighborY < 0 || neighborY >= height)
+
+                var (px, py) = GetNeighborCoords(x, y, GetOpposite(cell.Direction));
+                var isSegmentStart = px < 0 || px >= width || py < 0 || py >= height
+                                     || grid[px, py].Type != CellType.Road
+                                     || grid[px, py].Direction != cell.Direction;
+
+                // Follow the same direction chain if the segment is a start of a lane and create one big lane
+                if (isSegmentStart)
                 {
-                    continue;
+                    var (cx, cy) = (x, y);
+                    var (nx, ny) = GetNeighborCoords(cx, cy, cell.Direction);
+                    while (nx >= 0 && nx < width && ny >= 0 && ny < height
+                           && grid[nx, ny].Type == CellType.Road
+                           && grid[nx, ny].Direction == cell.Direction)
+                    {
+                        (cx, cy) = (nx, ny);
+                        (nx, ny) = GetNeighborCoords(cx, cy, cell.Direction);
+                    }
+
+                    if ((cx, cy) != (x, y) && nodeMap.TryGetValue((cx, cy), out var segEndNode))
+                    {
+                        var straightLane = new Lane(currentNode, segEndNode, cell.Direction, cell.Direction, cell.SpeedLimitMph * MphToMps);
+                        network.AddLane(straightLane);
+
+                        // Map every middle cell (has no node of its own) to this lane for spatial lookup
+                        var (mx, my) = GetNeighborCoords(x, y, cell.Direction);
+                        while ((mx, my) != (cx, cy))
+                        {
+                            network.AddCellLaneMapping(mx, my, straightLane);
+                            (mx, my) = GetNeighborCoords(mx, my, cell.Direction);
+                        }
+                    }
                 }
-                var neighborCell = grid[neighborX, neighborY];
                 
-                if (neighborCell.Type != CellType.Road || neighborCell.Direction == TrafficDirection.None)
-                {
-                    continue;
-                }
-                if (!CanConnect(cell.Direction, neighborCell.Direction))
-                {
-                    continue;
-                }
-                if (!nodeMap.TryGetValue((neighborX, neighborY), out var neighborNode))
-                {
-                    continue;
-                }
-                
-                var lane = new Lane(
-                    currentNode, 
-                    neighborNode, 
-                    cell.Direction, 
-                    neighborCell.Direction,
-                    cell.SpeedLimitMph * MphToMps
-                );
-                
-                network.AddLane(lane);
+                var (sx, sy) = GetNeighborCoords(x, y, cell.Direction);
+                var isSegmentEnd = sx < 0 || sx >= width || sy < 0 || sy >= height
+                                   || grid[sx, sy].Type != CellType.Road
+                                   || grid[sx, sy].Direction != cell.Direction;
+
+                if (!isSegmentEnd
+                    || sx < 0 || sx >= width || sy < 0 || sy >= height
+                    || grid[sx, sy].Type != CellType.Road
+                    || grid[sx, sy].Direction == TrafficDirection.None
+                    || !CanConnect(cell.Direction, grid[sx, sy].Direction)
+                    || !nodeMap.TryGetValue((sx, sy), out var turnNode)) continue;
+                var curvedLane = new Lane(currentNode, turnNode, cell.Direction, grid[sx, sy].Direction, cell.SpeedLimitMph * MphToMps);
+                network.AddLane(curvedLane);
             }
         }
         
@@ -107,6 +129,20 @@ public static class NetworkManager
         return network;
     }
     
+    /// <summary>
+    /// Returns true if the road cell at (x, y) needs a traffic node as it is a change of direction e.t.c.
+    /// </summary>
+    private static bool IsSegmentBoundary(Cell[,] grid, int width, int height, int x, int y, TrafficDirection direction)
+    {
+        var (px, py) = GetNeighborCoords(x, y, GetOpposite(direction));
+        var noPredecessor = px < 0 || px >= width || py < 0 || py >= height || grid[px, py].Type != CellType.Road || grid[px, py].Direction != direction;
+
+        var (sx, sy) = GetNeighborCoords(x, y, direction);
+        var noSuccessor = sx < 0 || sx >= width || sy < 0 || sy >= height || grid[sx, sy].Type != CellType.Road || grid[sx, sy].Direction != direction;
+
+        return noPredecessor || noSuccessor;
+    }
+
     /// <summary>
     /// Gets the coordinates of the next cell in a direction
     /// </summary>
@@ -202,6 +238,16 @@ public static class NetworkManager
                 }
             }
             
+            // Get blocked turns from all cells in this junction group
+            var groupBlockedTurns = new HashSet<(TrafficDirection, TrafficDirection)>();
+            foreach (var (cx, cy) in group)
+            {
+                foreach (var bt in grid[cx, cy].BlockedTurns)
+                {
+                    groupBlockedTurns.Add(bt);
+                }
+            }
+
             // Calculate lane conflicts
             var junctionConnectors = new List<Lane>();
             foreach (var (approachNode, approachDir) in approachNodes)
@@ -213,6 +259,10 @@ public static class NetworkManager
                         continue;
                     }
                     if (!CanConnect(approachDir, exitDir))
+                    {
+                        continue;
+                    }
+                    if (groupBlockedTurns.Contains((approachDir, exitDir)))
                     {
                         continue;
                     }
@@ -236,7 +286,6 @@ public static class NetworkManager
                     break;
                 }
                 case JunctionType.GiveWay:
-                case JunctionType.Stop:
                 default:
                 {
                     BuildGiveWayJunction(grid, group, approachNodes);
@@ -251,8 +300,8 @@ public static class NetworkManager
     /// </summary>
     private static void ComputeConflictingLanes(List<Lane> connectors)
     {
-        const int samples = 12;
-        var threshold = Car.WidthMeters;
+        const int samples = 24;
+        const double threshold = Car.WidthMeters;
 
         for (var i = 0; i < connectors.Count; i++)
         {
@@ -260,9 +309,8 @@ public static class NetworkManager
             {
                 var a = connectors[i];
                 var b = connectors[j];
-
-                // Same approach or same exit which is handled by follow car ahead
-                if (a.StartNode == b.StartNode || a.EndNode == b.EndNode)
+                
+                if (a.StartNode == b.StartNode)
                 {
                     continue;
                 }
