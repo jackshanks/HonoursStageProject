@@ -6,6 +6,9 @@ using TrafficSim.Models;
 
 namespace TrafficSim.Rendering;
 
+/// <summary>
+/// Handles all visual rendering for the traffic UI grid
+/// </summary>
 public class GridRenderer
 {
     private readonly Canvas _canvas;
@@ -53,6 +56,9 @@ public class GridRenderer
         _canvas.Children.Add(host);
     }
 
+    /// <summary>
+    /// Mounts the grid dimensions and calculates vector boundaries
+    /// </summary>
     public void CreateVisuals(Cell[,] grid, int width, int height, double cellSizePixels)
     {
         _grid = grid;
@@ -64,10 +70,12 @@ public class GridRenderer
         _canvas.Height = height * cellSizePixels;
 
         PreCalculateArrowPoints(cellSizePixels);
-
         RenderGrid();
     }
 
+    /// <summary>
+    /// Pre-calculates directional arrows to save rendering time
+    /// </summary>
     private void PreCalculateArrowPoints(double cellSize)
     {
         var center = cellSize / 2;
@@ -90,12 +98,12 @@ public class GridRenderer
         _arrowPointsWest[2] = new Point(center + arrowSize / 2, center + arrowSize / 2);
     }
 
+    /// <summary>
+    /// Primary loop to iterate and draw every active cell
+    /// </summary>
     public void RenderGrid()
     {
-        if (_grid == null)
-        {
-            return;
-        }
+        if (_grid == null) return;
 
         using var renderOpen = _gridVisual.RenderOpen();
 
@@ -129,10 +137,16 @@ public class GridRenderer
                 {
                     DrawGiveWayTriangle(renderOpen, x, y);
                 }
-
-                if (_trafficLightNodes.TryGetValue((x, y), out var lightPhase))
+                else if (_trafficLightNodes.TryGetValue((x, y), out var lightPhase))
                 {
                     DrawTrafficLight(renderOpen, x, y, lightPhase);
+                }
+                else if (cell.Type == CellType.Intersection)
+                {
+                    if (cell.JunctionType == JunctionType.TrafficLight)
+                        DrawTrafficLight(renderOpen, x, y, TrafficLightPhase.Green);
+                    else
+                        DrawGiveWayTriangle(renderOpen, x, y);
                 }
 
                 if (_spawnNodes.Contains((x, y)))
@@ -153,7 +167,6 @@ public class GridRenderer
             }
         }
 
-        if (!IsEditMode) return;
         foreach (var (cx, cy) in _junctionGroupCenters)
         {
             DrawGearIcon(renderOpen, cx, cy);
@@ -176,10 +189,7 @@ public class GridRenderer
     public void SetGiveWayNodes(IEnumerable<(int gridX, int gridY)> nodes)
     {
         _giveWayNodes.Clear();
-        foreach (var pos in nodes)
-        {
-            _giveWayNodes.Add(pos);
-        }
+        foreach (var pos in nodes) _giveWayNodes.Add(pos);
         RenderGrid();
     }
 
@@ -192,10 +202,7 @@ public class GridRenderer
     public void SetTrafficLightNodes(List<(int gridX, int gridY, TrafficLightPhase phase)> nodes)
     {
         _trafficLightNodes.Clear();
-        foreach (var (gx, gy, phase) in nodes)
-        {
-            _trafficLightNodes[(gx, gy)] = phase;
-        }
+        foreach (var (gx, gy, phase) in nodes) _trafficLightNodes[(gx, gy)] = phase;
         RenderGrid();
     }
 
@@ -208,10 +215,7 @@ public class GridRenderer
     public void SetSpawnNodes(IEnumerable<(int gridX, int gridY)> nodes)
     {
         _spawnNodes.Clear();
-        foreach (var pos in nodes)
-        {
-            _spawnNodes.Add(pos);
-        }
+        foreach (var pos in nodes) _spawnNodes.Add(pos);
         RenderGrid();
     }
 
@@ -224,10 +228,7 @@ public class GridRenderer
     public void SetSpawnBacklogs(IEnumerable<(int gridX, int gridY, double backlog)> nodes)
     {
         _spawnBacklogs.Clear();
-        foreach (var (gx, gy, backlog) in nodes)
-        {
-            _spawnBacklogs[(gx, gy)] = Math.Max(0.0, backlog);
-        }
+        foreach (var (gx, gy, backlog) in nodes) _spawnBacklogs[(gx, gy)] = Math.Max(0.0, backlog);
         RenderGrid();
     }
 
@@ -240,10 +241,7 @@ public class GridRenderer
     public void SetExitNodes(IEnumerable<(int gridX, int gridY)> nodes)
     {
         _exitNodes.Clear();
-        foreach (var pos in nodes)
-        {
-            _exitNodes.Add(pos);
-        }
+        foreach (var pos in nodes) _exitNodes.Add(pos);
         RenderGrid();
     }
 
@@ -265,6 +263,9 @@ public class GridRenderer
         RenderGrid();
     }
 
+    /// <summary>
+    /// Computes intersection triangle geometry
+    /// </summary>
     private void DrawGiveWayTriangle(DrawingContext dc, int gridX, int gridY)
     {
         var offsetX = gridX * _cellSizePixels;
@@ -288,11 +289,14 @@ public class GridRenderer
         dc.DrawGeometry(Brushes.White, GiveWayPen, geo);
     }
 
+    /// <summary>
+    /// Draws the settings hub icon over a junction
+    /// </summary>
     private void DrawGearIcon(DrawingContext dc, double pixelCx, double pixelCy)
     {
-        var fontSize = Math.Max(8.0, _cellSizePixels * 0.35);
+        var fontSize = Math.Max(8.0, _cellSizePixels * 0.55);
         var formatted = new FormattedText(
-            "J",
+            "⚙",
             CultureInfo.InvariantCulture,
             FlowDirection.LeftToRight,
             new Typeface("Segoe UI"),
@@ -412,10 +416,7 @@ public class GridRenderer
             _ => null
         };
 
-        if (points == null)
-        {
-            return;
-        }
+        if (points == null) return;
 
         var offsetX = gridX * _cellSizePixels;
         var offsetY = gridY * _cellSizePixels;
