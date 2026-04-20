@@ -21,7 +21,7 @@ public partial class MainWindow
     private readonly TrafficManager _trafficManager;
     private readonly CarRenderer _carRenderer;
     private readonly List<CarRenderData> _renderBuffer = [];
-    private readonly Lock _physicsLock = new();
+    private readonly object _physicsLock = new();
     private readonly Stopwatch _fpsStopwatch = Stopwatch.StartNew();
 
     private const double FixedTimeStep = 1.0 / 60.0;

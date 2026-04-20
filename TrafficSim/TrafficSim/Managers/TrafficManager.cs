@@ -10,7 +10,7 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
 {
     private readonly SimulationConfig _config = config ?? SimulationConfig.Default;
     private readonly List<Car> _cars = [];
-    private readonly Lock _carsLock = new();
+    private readonly object _carsLock = new();
 
     private LaneNetwork? _laneNetwork;
 
