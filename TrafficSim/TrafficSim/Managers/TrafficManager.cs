@@ -232,11 +232,9 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
             // Periodically record simulation stats
             _simulationTime += deltaTime;
             _statsAccumulator += deltaTime;
-            if (_statsAccumulator >= StatsSnapshotInterval)
-            {
-                _statsAccumulator -= StatsSnapshotInterval;
-                _statistics?.RecordSnapshot(_carsPerLane, _laneNetwork.Lanes);
-            }
+            if (!(_statsAccumulator >= StatsSnapshotInterval)) return;
+            _statsAccumulator -= StatsSnapshotInterval;
+            _statistics?.RecordSnapshot(_carsPerLane, _laneNetwork.Lanes);
         }
     }
     
@@ -369,18 +367,16 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
         var remainingDist = (1.0 - car.LanePosition) * car.CurrentLane.Length;
 
         // Cap speed near give-way lines to allow reaction time
-        if (remainingDist < _config.GiveWayApproachDistance)
-        {
-            var approachCap = car.MaxSpeed * _config.GiveWayApproachSpeedFactor;
-            speedCap = Math.Min(speedCap, approachCap);
-        }
+        if (!(remainingDist < _config.GiveWayApproachDistance)) return speedCap;
+        var approachCap = car.MaxSpeed * _config.GiveWayApproachSpeedFactor;
+        speedCap = Math.Min(speedCap, approachCap);
 
         return speedCap;
     }
 
     private double DecideConnectorConflictConstraint(Car car, double speedCap)
     {
-        // 1. Inside the junction
+        // Inside the junction
         if (car.CurrentLane!.Conflicts.Count > 0)
         {
             var myProgress = car.LanePosition;
@@ -409,8 +405,10 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
                     var canOverride = false;
                     if (myWait > 1.0 && theirWait > 1.0)
                     {
-                        if (car.Id.CompareTo(other.Id) > 0) canOverride = true;
-                        else if (myWait > 2.0) canOverride = true;
+                        if (car.Id.CompareTo(other.Id) > 0 || myWait > 2.0)
+                        {
+                            canOverride = true;
+                        }
                     }
 
                     if (canOverride) continue;
@@ -430,7 +428,7 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
             return speedCap; 
         }
 
-        // 2. Approaching the junction
+        // Approaching the junction
         foreach (var (futureLane, distToStart, _) in car.GetCachedPathAhead())
         {
             if (futureLane.Id == car.CurrentLane.Id) continue;
@@ -504,30 +502,22 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
                     }
                 }
 
-                if (thisConflictMustGiveWay)
+                if (!thisConflictMustGiveWay) continue;
+                var myWait = _carWaitTimers.GetValueOrDefault(car.Id);
+                var theirWait = _carWaitTimers.GetValueOrDefault(givingWayToInThisConflict!.Id);
+
+                var canOverride = false;
+                if (myWait > 1.0 && theirWait > 1.0)
                 {
-                    var myWait = _carWaitTimers.GetValueOrDefault(car.Id);
-                    var theirWait = _carWaitTimers.GetValueOrDefault(givingWayToInThisConflict!.Id);
-
-                    var canOverride = false;
-                    if (myWait > 1.0 && theirWait > 1.0)
+                    if (car.Id.CompareTo(givingWayToInThisConflict.Id) > 0 || myWait > 2.0)
                     {
-                        if (car.Id.CompareTo(givingWayToInThisConflict.Id) > 0)
-                        {
-                            canOverride = true; 
-                        }
-                        else if (myWait > 2.0)
-                        {
-                            canOverride = true; 
-                        }
-                    }
-
-                    if (!canOverride)
-                    {
-                        hasUnbreakableGiveWay = true;
-                        break;
+                        canOverride = true; 
                     }
                 }
+
+                if (canOverride) continue;
+                hasUnbreakableGiveWay = true;
+                break;
             }
 
             if (hasUnbreakableGiveWay || !IsExitRoadClear(futureLane, car))
