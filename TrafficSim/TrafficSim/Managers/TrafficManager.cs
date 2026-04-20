@@ -228,6 +228,15 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
                 _spawnDemand[node.Id] = pendingDemand;
                 _spawnReleaseCooldown[node.Id] = cooldown;
             }
+
+            // Periodically record simulation stats
+            _simulationTime += deltaTime;
+            _statsAccumulator += deltaTime;
+            if (_statsAccumulator >= StatsSnapshotInterval)
+            {
+                _statsAccumulator -= StatsSnapshotInterval;
+                _statistics?.RecordSnapshot(_carsPerLane, _laneNetwork.Lanes);
+            }
         }
     }
     

@@ -940,7 +940,9 @@
       "Direction": "None",
       "JunctionType": "GiveWay",
       "SpeedLimitMph": 30,
-      "GiveWayDirections": [],
+      "GiveWayDirections": [
+        "North"
+      ],
       "BlockedTurns": [],
       "GreenDuration": 20,
       "YellowDuration": 3,
@@ -955,7 +957,9 @@
       "Direction": "None",
       "JunctionType": "GiveWay",
       "SpeedLimitMph": 30,
-      "GiveWayDirections": [],
+      "GiveWayDirections": [
+        "North"
+      ],
       "BlockedTurns": [],
       "GreenDuration": 20,
       "YellowDuration": 3,
@@ -1135,7 +1139,9 @@
       "Direction": "None",
       "JunctionType": "GiveWay",
       "SpeedLimitMph": 30,
-      "GiveWayDirections": [],
+      "GiveWayDirections": [
+        "North"
+      ],
       "BlockedTurns": [],
       "GreenDuration": 20,
       "YellowDuration": 3,
@@ -1150,7 +1156,9 @@
       "Direction": "None",
       "JunctionType": "GiveWay",
       "SpeedLimitMph": 30,
-      "GiveWayDirections": [],
+      "GiveWayDirections": [
+        "North"
+      ],
       "BlockedTurns": [],
       "GreenDuration": 20,
       "YellowDuration": 3,
