@@ -4,19 +4,15 @@ using static TrafficSim.Utility.TrafficUtility;
 namespace TrafficSim.Managers;
 
 /// <summary>
-/// Builds the network as a predefined "grid" to allow the cars to run through
+/// Converts the visual UI grid into the mathematical network of nodes and lanes for the cars
 /// </summary>
 public static class NetworkManager
 {
     private const double MphToMps = 0.44704;
+    
     /// <summary>
-    /// Builds the network from the grid of cells
+    /// Builds the physical network from the visual grid
     /// </summary>
-    /// <param name="grid">The list of all cells</param>
-    /// <param name="width">the width of the grid in cells</param>
-    /// <param name="height">the height of the grid in cells</param>
-    /// <param name="cellSizeMeters">The size of the cells in meters</param>
-    /// <returns>The built network (considered immutable)</returns>
     public static LaneNetwork BuildNetwork(Cell[,] grid, int width, int height, double cellSizeMeters, SimulationConfig? config = null)
     {
         var network = new LaneNetwork { CellSizeMeters = cellSizeMeters };
@@ -32,7 +28,8 @@ public static class NetworkManager
                 {
                     continue;
                 }
-                // Only create nodes at segment boundaries like change in directions e.t.c.
+                
+                // Only create nodes at segment boundaries (starts, ends, corners)
                 if (!IsSegmentBoundary(grid, width, height, x, y, cell.Direction))
                 {
                     continue;
@@ -40,7 +37,6 @@ public static class NetworkManager
                 var centerX = cell.RealWorldX + cellSizeMeters / 2.0;
                 var centerY = cell.RealWorldY + cellSizeMeters / 2.0;
 
-                // Creates a new traffic node at the centre of road cells at segment boundaries
                 var node = new TrafficNode(centerX, centerY, x, y);
                 network.AddNode(node);
                 nodeMap[(x, y)] = node;
@@ -67,7 +63,7 @@ public static class NetworkManager
                                      || grid[px, py].Type != CellType.Road
                                      || grid[px, py].Direction != cell.Direction;
 
-                // Follow the same direction chain if the segment is a start of a lane and create one big lane
+                // Trace out straight lanes
                 if (isSegmentStart)
                 {
                     var (cx, cy) = (x, y);
@@ -85,7 +81,7 @@ public static class NetworkManager
                         var straightLane = new Lane(currentNode, segEndNode, cell.Direction, cell.Direction, cell.SpeedLimitMph * MphToMps);
                         network.AddLane(straightLane);
 
-                        // Map every middle cell (has no node of its own) to this lane for spatial lookup
+                        // Map intermediate cells for spatial lookup
                         var (mx, my) = GetNeighborCoords(x, y, cell.Direction);
                         while ((mx, my) != (cx, cy))
                         {
@@ -106,6 +102,7 @@ public static class NetworkManager
                     || grid[sx, sy].Direction == TrafficDirection.None
                     || !CanConnect(cell.Direction, grid[sx, sy].Direction)
                     || !nodeMap.TryGetValue((sx, sy), out var turnNode)) continue;
+                
                 var curvedLane = new Lane(currentNode, turnNode, cell.Direction, grid[sx, sy].Direction, cell.SpeedLimitMph * MphToMps);
                 network.AddLane(curvedLane);
             }
@@ -115,14 +112,13 @@ public static class NetworkManager
 
         foreach (var node in network.Nodes)
         {
-            // Sets spawn and exit nodes for spawning and exiting cars
             if (node.IncomingLanes.Count == 0)
             {
-                node.Enums = Enums.Spawn;
+                node.NodeType = NodeType.Spawn;
             }
             else if (node.OutgoingLanes.Count == 0)
             {
-                node.Enums = Enums.Exit;
+                node.NodeType = NodeType.Exit;
             }
         }
 
@@ -130,7 +126,7 @@ public static class NetworkManager
     }
     
     /// <summary>
-    /// Returns true if the road cell at (x, y) needs a traffic node as it is a change of direction e.t.c.
+    /// Checks if a cell acts as a boundary requiring a node
     /// </summary>
     private static bool IsSegmentBoundary(Cell[,] grid, int width, int height, int x, int y, TrafficDirection direction)
     {
@@ -144,12 +140,8 @@ public static class NetworkManager
     }
 
     /// <summary>
-    /// Gets the coordinates of the next cell in a direction
+    /// Translates direction to grid offsets
     /// </summary>
-    /// <param name="x">x coord of the cell</param>
-    /// <param name="y">y coord of the cell</param>
-    /// <param name="direction">Direction to look</param>
-    /// <returns>the coords of the next cell</returns>
     private static (int x, int y) GetNeighborCoords(int x, int y, TrafficDirection direction)
     {
         return direction switch
@@ -163,11 +155,8 @@ public static class NetworkManager
     }
     
     /// <summary>
-    /// Checks if a lane can connect to another lane (Prevents U Turns)
+    /// Prevents U-Turns when mapping junctions
     /// </summary>
-    /// <param name="fromDirection">Entrance direction</param>
-    /// <param name="toDirection">Leave direction</param>
-    /// <returns></returns>
     private static bool CanConnect(TrafficDirection fromDirection, TrafficDirection toDirection)
     {
         if (fromDirection == toDirection)
@@ -186,36 +175,26 @@ public static class NetworkManager
     }
     
     /// <summary>
-    /// Checks that there are no invalid nodes
+    /// Ensures all nodes in the network are cleanly connected
     /// </summary>
-    /// <param name="network">The built network</param>
-    /// <returns>True if validated, false if not</returns>
     public static bool ValidateNetwork(LaneNetwork network)
     {
         var disconnected = network.Nodes.Count(n => n.OutgoingLanes.Count == 0 && n.IncomingLanes.Count == 0);
-
         return disconnected == 0;
     }
     
     /// <summary>
-    /// Builds the lanes for cars to follow inside junctions
+    /// Generates connector lanes across intersection zones
     /// </summary>
-    /// <param name="grid">List of cells</param>
-    /// <param name="width">Width of grid in cells</param>
-    /// <param name="height">Height of grid in cells</param>
-    /// <param name="network">The built network</param>
-    /// <param name="config">Simulation config</param>
     private static void BuildJunctionLanes(Cell[,] grid, int width, int height, LaneNetwork network, SimulationConfig? config = null)
     {
         var junctionGroups = FindJunctionGroups(grid, width, height);
 
         foreach (var group in junctionGroups)
         {
-            // Determine junction type from the first cell in the group
             var (firstX, firstY) = group.First();
             var junctionType = grid[firstX, firstY].JunctionType;
 
-            // Find all approach and exit nodes in a junction group
             var approachNodes = new List<(TrafficNode node, TrafficDirection dir)>();
             var exitNodes = new List<(TrafficNode node, TrafficDirection dir)>();
 
@@ -223,14 +202,12 @@ public static class NetworkManager
             {
                 var direction = grid[node.GridX, node.GridY].Direction;
 
-                // the next cell in the direction of travel is inside this junction box
                 var (nx, ny) = GetNeighborCoords(node.GridX, node.GridY, direction);
                 if (group.Contains((nx, ny)))
                 {
                     approachNodes.Add((node, direction));
                 }
 
-                // the cell directly behind this node is inside the box
                 var (px, py) = GetNeighborCoords(node.GridX, node.GridY, GetOpposite(direction));
                 if (group.Contains((px, py)))
                 {
@@ -238,7 +215,6 @@ public static class NetworkManager
                 }
             }
             
-            // Get blocked turns from all cells in this junction group
             var groupBlockedTurns = new HashSet<(TrafficDirection, TrafficDirection)>();
             foreach (var (cx, cy) in group)
             {
@@ -248,41 +224,30 @@ public static class NetworkManager
                 }
             }
 
-            // Calculate lane conflicts
             var junctionConnectors = new List<Lane>();
             foreach (var (approachNode, approachDir) in approachNodes)
             {
                 foreach (var (exitNode, exitDir) in exitNodes)
                 {
-                    if (approachNode == exitNode)
-                    {
-                        continue;
-                    }
-                    if (!CanConnect(approachDir, exitDir))
-                    {
-                        continue;
-                    }
-                    if (groupBlockedTurns.Contains((approachDir, exitDir)))
-                    {
-                        continue;
-                    }
+                    if (approachNode == exitNode) continue;
+                    if (!CanConnect(approachDir, exitDir)) continue;
+                    if (groupBlockedTurns.Contains((approachDir, exitDir))) continue;
 
                     var approachSpeedMps = grid[approachNode.GridX, approachNode.GridY].SpeedLimitMph * MphToMps;
-                    var lane = new Lane(approachNode, exitNode, approachDir, exitDir, approachSpeedMps);
+                    var lane = new Lane(approachNode, exitNode, approachDir, exitDir, approachSpeedMps) { IsJunctionConnector = true };
                     network.AddLane(lane);
                     junctionConnectors.Add(lane);
                 }
             }
 
-            // Compute which lanes are in conflict for junctions
             ComputeConflictingLanes(junctionConnectors);
 
-            // Apply junction logic
             switch (junctionType)
             {
                 case JunctionType.TrafficLight:
                 {
-                    BuildTrafficLightJunction(approachNodes, junctionConnectors, network, config ?? SimulationConfig.Default);
+                    var repCell = grid[firstX, firstY];
+                    BuildTrafficLightJunction(approachNodes, junctionConnectors, network, config ?? SimulationConfig.Default, repCell.GreenDuration, repCell.YellowDuration, repCell.AllRedDuration);
                     break;
                 }
                 case JunctionType.GiveWay:
@@ -296,7 +261,7 @@ public static class NetworkManager
     }
 
     /// <summary>
-    /// For each pair of junction connector lanes, checks whether their paths cross and if so adds each to the other's ConflictingLanes list
+    /// Flags crossing paths for yielding mechanics inside a junction
     /// </summary>
     private static void ComputeConflictingLanes(List<Lane> connectors)
     {
@@ -315,7 +280,6 @@ public static class NetworkManager
                     continue;
                 }
 
-                // Don't flag cars driving past each other
                 if (a.Type == LaneType.Straight && b.Type == LaneType.Straight &&
                     GetOpposite(a.StartDirection) == b.StartDirection &&
                     GetOpposite(a.EndDirection) == b.EndDirection)
@@ -323,7 +287,8 @@ public static class NetworkManager
                     continue;
                 }
 
-                // Sample both curves and check if any sample pair is within the width threshold.
+                var minAa = 0.0;
+                var minBb = 0.0;
                 var minDistSq = double.MaxValue;
                 for (var si = 0; si <= samples; si++)
                 {
@@ -334,19 +299,26 @@ public static class NetworkManager
                         var dx = pa.X - pb.X;
                         var dy = pa.Y - pb.Y;
                         var distSq = dx * dx + dy * dy;
-                        if (distSq < minDistSq) minDistSq = distSq;
+                        if (distSq < minDistSq) 
+                        {
+                            minDistSq = distSq;
+                            minAa = (double)si / samples;
+                            minBb = (double)sj / samples;
+                        }
                     }
                 }
 
                 if (!(minDistSq < threshold * threshold)) continue;
                 a.ConflictingLanes.Add(b);
+                a.Conflicts.Add(new LaneConflict { ConflictingLane = b, MyFraction = minAa, TheirFraction = minBb });
                 b.ConflictingLanes.Add(a);
+                b.Conflicts.Add(new LaneConflict { ConflictingLane = a, MyFraction = minBb, TheirFraction = minAa });
             }
         }
     }
 
     /// <summary>
-    /// Marks approach nodes with give-way flags and assigns priority nodes
+    /// Establishes yielding logic at stopline nodes
     /// </summary>
     private static void BuildGiveWayJunction(Cell[,] grid, HashSet<(int, int)> group,
         List<(TrafficNode node, TrafficDirection dir)> approachNodes)
@@ -374,9 +346,9 @@ public static class NetworkManager
     }
 
     /// <summary>
-    /// Creates a TrafficLightController for the junction with phases based on lane conflicts
+    /// Creates a phase-based state machine for lights
     /// </summary>
-    private static void BuildTrafficLightJunction( List<(TrafficNode node, TrafficDirection dir)> approachNodes, List<Lane> junctionConnectors, LaneNetwork network, SimulationConfig config)
+    private static void BuildTrafficLightJunction(List<(TrafficNode node, TrafficDirection dir)> approachNodes, List<Lane> junctionConnectors, LaneNetwork network, SimulationConfig config, double greenDuration = 20.0, double yellowDuration = 3.0, double allRedDuration = 1.0)
     {
         var directionConflicts = new Dictionary<TrafficDirection, HashSet<TrafficDirection>>();
         foreach (var (_, dir) in approachNodes)
@@ -391,7 +363,6 @@ public static class NetworkManager
             }
         }
 
-        // Assign each direction the lowest phase index that isn't already used by a conflicting direction.
         var colorAssignment = new Dictionary<TrafficDirection, int>();
         foreach (var dir in directionConflicts.Keys)
         {
@@ -405,7 +376,6 @@ public static class NetworkManager
             colorAssignment[dir] = color;
         }
 
-        // Group directions by assigned colour into phase groups.
         var phaseGroupsDict = new Dictionary<int, HashSet<TrafficDirection>>();
         foreach (var (dir, color) in colorAssignment)
         {
@@ -434,6 +404,7 @@ public static class NetworkManager
         }
 
         var controller = new TrafficLightController(phaseGroups, config);
+        controller.SetTimings(greenDuration, yellowDuration, allRedDuration);
 
         foreach (var (node, _) in approachNodes)
         {
@@ -444,12 +415,8 @@ public static class NetworkManager
     }
     
     /// <summary>
-    /// Finds all grouped junction nodes in a grid
+    /// Groups connecting cells into logic junctions
     /// </summary>
-    /// <param name="grid">The list of cells</param>
-    /// <param name="width">The width of the grid in cells</param>
-    /// <param name="height">The height of the grid in cells</param>
-    /// <returns>A list of junction groups</returns>
     private static List<HashSet<(int, int)>> FindJunctionGroups(Cell[,] grid, int width, int height)
     {
         var visited = new HashSet<(int, int)>();
@@ -478,7 +445,6 @@ public static class NetworkManager
                     var (cx, cy) = queue.Dequeue();
                     group.Add((cx, cy));
 
-                    // Go through each cell around a junction node and check if it's also a junction node
                     foreach (var (nx, ny) in new[] { (cx, cy - 1), (cx, cy + 1), (cx - 1, cy), (cx + 1, cy) })
                     {
                         if (nx < 0 || nx >= width || ny < 0 || ny >= height)

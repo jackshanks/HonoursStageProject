@@ -7,12 +7,11 @@ namespace TrafficSim.Managers;
 /// <summary>
 /// Creates and manages the grid
 /// </summary>
-/// <param name="canvas">UI Element</param>
-/// <param name="cellSizeMeters">Assigns each cell to a meter length for real-world comparisons</param>
 public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
 {
     private readonly GridRenderer _renderer = new(canvas);
     private readonly ReaderWriterLockSlim _gridLock = new();
+    
     public int GridWidth { get; private set; }
     public int GridHeight { get; private set; }
     public double CellSizeMeters { get; } = cellSizeMeters;
@@ -21,11 +20,8 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
     private Cell[,]? _grid;
     
     /// <summary>
-    /// Creates and draws a grid
+    /// Initialises a new blank grid
     /// </summary>
-    /// <param name="width">How many cells wide</param>
-    /// <param name="height">How many cells tall</param>
-    /// <param name="cellSizePixels">Pixels per cell</param>
     public void CreateGrid(int width, int height, double cellSizePixels)
     {
         _gridLock.EnterWriteLock();
@@ -54,11 +50,8 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
     }
 
     /// <summary>
-    /// Gets a cell from the grid
+    /// Safely fetches a cell by grid coords
     /// </summary>
-    /// <param name="x">x coord of the cell</param>
-    /// <param name="y">y coord of the cell</param>
-    /// <returns></returns>
     private Cell? GetCell(int x, int y)
     {
         if (x >= 0 && x < GridWidth && y >= 0 && y < GridHeight)
@@ -69,17 +62,13 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
     }
     
     /// <summary>
-    /// Gets a cell from a pixel position, used for mouse actions
+    /// Converts a pixel click into a cell reference
     /// </summary>
-    /// <param name="pixelX">xThe pixels x value</param>
-    /// <param name="pixelY">The pixels y value</param>
-    /// <returns></returns>
     public Cell? GetCellFromPixel(double pixelX, double pixelY)
     {
         _gridLock.EnterReadLock();
         try
         {
-            // Finds the matching cells by dividing by each cell's size and using floor (in case of negative coords)
             var x = (int)Math.Floor(pixelX / CellSizePixels);
             var y = (int)Math.Floor(pixelY / CellSizePixels);
             return GetCell(x, y);
@@ -91,11 +80,8 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
     }
     
     /// <summary>
-    /// Gets a cell from a grid position
+    /// Thread-safe cell getter
     /// </summary>
-    /// <param name="x">x coord of the cell</param>
-    /// <param name="y">y coord of the cell</param>
-    /// <returns></returns>
     public Cell? GetCellFromGridCoords(int x, int y)
     {
         _gridLock.EnterReadLock();
@@ -110,18 +96,14 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
     }
     
     /// <summary>
-    /// Gets the number of pixels per meter
+    /// Scale factor for drawing on canvas
     /// </summary>
-    /// <returns></returns>
     public double GetPixelsPerMeter()
     {
         _gridLock.EnterReadLock();
         try
         {
-            if (CellSizeMeters <= 0)
-            {
-                return 1;
-            }
+            if (CellSizeMeters <= 0) return 1;
             return CellSizePixels / CellSizeMeters;
         }
         finally
@@ -131,21 +113,16 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
     }
     
     /// <summary>
-    /// Sets the cell direction
+    /// Updates cell direction
     /// </summary>
-    /// <param name="x">x coord of the cell</param>
-    /// <param name="y">y coord of the cell</param>
-    /// <param name="direction">Direction using TrafficDirection Enum</param>
     public void SetCellDirection(int x, int y, TrafficDirection direction)
     {
         _gridLock.EnterWriteLock();
         try
         {
             var cell = GetCell(x, y);
-            if (cell == null)
-            {
-                return;
-            }
+            if (cell == null) return;
+            
             cell.SetDirection(direction);
             _renderer.RenderGrid();
         }
@@ -156,11 +133,8 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
     }
     
     /// <summary>
-    /// Sets the cell speed limit
+    /// Updates cell speed limit
     /// </summary>
-    /// <param name="x">x coord of the cell</param>
-    /// <param name="y">y coord of the cell</param>
-    /// <param name="speedLimitMph">Speed limit in Mph</param>
     public void SetCellSpeedLimit(int x, int y, int speedLimitMph)
     {
         _gridLock.EnterWriteLock();
@@ -176,22 +150,16 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
     }
 
     /// <summary>
-    /// Sets the cell's type and direction
+    /// Updates cell type and direction
     /// </summary>
-    /// <param name="x">x coord of the cell</param>
-    /// <param name="y">y coord of the cell</param>
-    /// <param name="type">Type of cell using CellType Enum (I.E. junction/road)</param>
-    /// <param name="direction">Direction using TrafficDirection Enum</param>
     public void SetCellTypeAndDirection(int x, int y, CellType type, TrafficDirection direction)
     {
         _gridLock.EnterWriteLock();
         try
         {
             var cell = GetCell(x, y);
-            if (cell == null)
-            {
-                return;
-            }
+            if (cell == null) return;
+            
             cell.SetTypeAndDirection(type, direction);
             _renderer.RenderGrid();
         }
@@ -202,17 +170,14 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
     }
     
     /// <summary>
-    /// Clears direction and type of all cells
+    /// Resets all cells to empty
     /// </summary>
     public void ClearAllCells()
     {
         _gridLock.EnterWriteLock();
         try
         {
-            if (_grid == null)
-            {
-                return;
-            }
+            if (_grid == null) return;
 
             for (var x = 0; x < GridWidth; x++)
             {
@@ -230,104 +195,67 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
     }
     
     /// <summary>
-    /// Sets all give way nodes in one (at build) to hand to the render
+    /// Hands give-way nodes to renderer
     /// </summary>
-    /// <param name="nodes">List of nodes marked as give-way</param>
-    public void SetGiveWayNodes(IEnumerable<(int gridX, int gridY)> nodes)
-    {
-        _renderer.SetGiveWayNodes(nodes);
-    }
+    public void SetGiveWayNodes(IEnumerable<(int gridX, int gridY)> nodes) => _renderer.SetGiveWayNodes(nodes);
 
     /// <summary>
-    /// Clears all give-way nodes
+    /// Clears visual give-way nodes
     /// </summary>
-    public void ClearGiveWayNodes()
-    {
-        _renderer.ClearGiveWayNodes();
-    }
+    public void ClearGiveWayNodes() => _renderer.ClearGiveWayNodes();
 
     /// <summary>
-    /// Sets traffic light node positions and their current phase
+    /// Hands traffic light info to renderer
     /// </summary>
-    public void SetTrafficLightNodes(List<(int gridX, int gridY, TrafficLightPhase phase)> nodes)
-    {
-        _renderer.SetTrafficLightNodes(nodes);
-    }
+    public void SetTrafficLightNodes(List<(int gridX, int gridY, TrafficLightPhase phase)> nodes) => _renderer.SetTrafficLightNodes(nodes);
 
     /// <summary>
-    /// Clears all traffic light nodes
+    /// Clears visual traffic lights
     /// </summary>
-    public void ClearTrafficLightNodes()
-    {
-        _renderer.ClearTrafficLightNodes();
-    }
+    public void ClearTrafficLightNodes() => _renderer.ClearTrafficLightNodes();
 
     /// <summary>
-    /// Sets spawn node indicator positions
+    /// Hands spawn node locations to renderer
     /// </summary>
-    public void SetSpawnNodes(IEnumerable<(int gridX, int gridY)> nodes)
-    {
-        _renderer.SetSpawnNodes(nodes);
-    }
+    public void SetSpawnNodes(IEnumerable<(int gridX, int gridY)> nodes) => _renderer.SetSpawnNodes(nodes);
 
     /// <summary>
-    /// Clears all spawn node indicators
+    /// Clears visual spawn nodes
     /// </summary>
-    public void ClearSpawnNodes()
-    {
-        _renderer.ClearSpawnNodes();
-    }
+    public void ClearSpawnNodes() => _renderer.ClearSpawnNodes();
 
     /// <summary>
-    /// Sets visual spawn backlog values at spawn nodes.
+    /// Sets visible vehicle queue text at spawn nodes
     /// </summary>
-    public void SetSpawnBacklogs(IEnumerable<(int gridX, int gridY, double backlog)> nodes)
-    {
-        _renderer.SetSpawnBacklogs(nodes);
-    }
+    public void SetSpawnBacklogs(IEnumerable<(int gridX, int gridY, double backlog)> nodes) => _renderer.SetSpawnBacklogs(nodes);
 
     /// <summary>
-    /// Clears visual spawn backlog values.
+    /// Clears backlog text
     /// </summary>
-    public void ClearSpawnBacklogs()
-    {
-        _renderer.ClearSpawnBacklogs();
-    }
+    public void ClearSpawnBacklogs() => _renderer.ClearSpawnBacklogs();
 
     /// <summary>
-    /// Sets exit node indicator positions
+    /// Hands exit node locations to renderer
     /// </summary>
-    public void SetExitNodes(IEnumerable<(int gridX, int gridY)> nodes)
-    {
-        _renderer.SetExitNodes(nodes);
-    }
+    public void SetExitNodes(IEnumerable<(int gridX, int gridY)> nodes) => _renderer.SetExitNodes(nodes);
 
     /// <summary>
-    /// Clears all exit node indicators
+    /// Clears visual exit nodes
     /// </summary>
-    public void ClearExitNodes()
-    {
-        _renderer.ClearExitNodes();
-    }
+    public void ClearExitNodes() => _renderer.ClearExitNodes();
 
     /// <summary>
-    /// Highlights the node at the given grid position as selected
+    /// Highlights user-selected node
     /// </summary>
-    public void SetSelectedNode(int gridX, int gridY)
-    {
-        _renderer.SetSelectedNode(gridX, gridY);
-    }
+    public void SetSelectedNode(int gridX, int gridY) => _renderer.SetSelectedNode(gridX, gridY);
 
     /// <summary>
-    /// Removes the selected node highlight
+    /// Clears user selection highlight
     /// </summary>
-    public void ClearSelectedNode()
-    {
-        _renderer.ClearSelectedNode();
-    }
+    public void ClearSelectedNode() => _renderer.ClearSelectedNode();
 
     /// <summary>
-    /// Returns all non-empty cells for JSON
+    /// Gets all drawn cells for JSON exporting
     /// </summary>
     public List<Cell> GetAllNonEmptyCells()
     {
@@ -335,10 +263,8 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
         try
         {
             var cells = new List<Cell>();
-            if (_grid == null)
-            {
-                return cells;
-            }
+            if (_grid == null) return cells;
+            
             for (var x = 0; x < GridWidth; x++)
             {
                 for (var y = 0; y < GridHeight; y++)
@@ -358,9 +284,8 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
     }
 
     /// <summary>
-    /// Checks if the grid has been created (Edge case as grid should be made on program run)
+    /// Safety check before using grid
     /// </summary>
-    /// <returns></returns>
     public bool HasGrid()
     {
         _gridLock.EnterReadLock();
@@ -375,23 +300,18 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
     }
     
     /// <summary>
-    /// Gets all info of a cell to be displayed
+    /// Formats cell details for bottom status bar
     /// </summary>
-    /// <param name="cell">Cell to get info about</param>
-    /// <returns></returns>
     public static string GetCellInfo(Cell? cell)
     {
-        if (cell == null)
-        {
-            return "Error: Cell not found";
-        }
+        if (cell == null) return "Error: Cell not found";
             
         var directionText = cell.Direction != TrafficDirection.None ? $" | Direction: {cell.Direction}" : "";
         return $"Grid: ({cell.X}, {cell.Y}) | Position: ({cell.RealWorldX:F1}m, {cell.RealWorldY:F1}m) | Type: {cell.Type}{directionText}";
     }
     
     /// <summary>
-    /// Returns connected groups of adjacent intersection cells.
+    /// Groups touching intersection cells together into distinct junctions
     /// </summary>
     public List<List<Cell>> ComputeJunctionGroups()
     {
@@ -407,6 +327,7 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
                 for (var y = 0; y < GridHeight; y++)
                 {
                     if (_grid[x, y].Type != CellType.Intersection || visited.Contains((x, y))) continue;
+                    
                     var group = new List<Cell>();
                     var queue = new Queue<(int, int)>();
                     queue.Enqueue((x, y));
@@ -416,9 +337,11 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
                     {
                         var (cx, cy) = queue.Dequeue();
                         group.Add(_grid[cx, cy]);
+                        
                         foreach (var (nx, ny) in new[] { (cx - 1, cy), (cx + 1, cy), (cx, cy - 1), (cx, cy + 1) })
                         {
                             if (nx < 0 || nx >= GridWidth || ny < 0 || ny >= GridHeight || visited.Contains((nx, ny)) || _grid[nx, ny].Type != CellType.Intersection) continue;
+                            
                             visited.Add((nx, ny));
                             queue.Enqueue((nx, ny));
                         }
@@ -435,15 +358,12 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
     }
 
     /// <summary>
-    /// Sends junction group centre positions to the renderer.
+    /// Submits cluster centers to renderer for bounding boxes
     /// </summary>
-    public void SetJunctionGroupCenters(IEnumerable<(double cx, double cy)> centers)
-    {
-        _renderer.SetJunctionGroupCenters(centers);
-    }
+    public void SetJunctionGroupCenters(IEnumerable<(double cx, double cy)> centers) => _renderer.SetJunctionGroupCenters(centers);
 
     /// <summary>
-    /// Switch between edit mode and sim mode.
+    /// Toggles rendering mode filters
     /// </summary>
     public void SetEditMode(bool isEditMode)
     {
@@ -452,18 +372,12 @@ public class GridManager(Canvas canvas, double cellSizeMeters = 4.0)
     }
 
     /// <summary>
-    /// Forces a full grid re-render.
+    /// Forces UI update
     /// </summary>
-    public void RenderGrid()
-    {
-        _renderer.RenderGrid();
-    }
+    public void RenderGrid() => _renderer.RenderGrid();
 
     /// <summary>
-    /// gridLock requires a Dispose to it frees the object
+    /// Clean up lock on close
     /// </summary>
-    public void Dispose()
-    {
-        _gridLock.Dispose();
-    }
+    public void Dispose() => _gridLock.Dispose();
 }

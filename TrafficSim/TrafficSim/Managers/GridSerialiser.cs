@@ -7,7 +7,7 @@ using TrafficSim.Models;
 namespace TrafficSim.Managers;
 
 /// <summary>
-/// Handles saving and loading grid data to/from JSON files
+/// Saves and loads grid data to JSON files
 /// </summary>
 public static class GridSerialiser
 {
@@ -18,7 +18,7 @@ public static class GridSerialiser
     };
 
     /// <summary>
-    /// Extracts the current grid state into a serialisable data transfer object
+    /// Packs the current grid state into a serialisable object
     /// </summary>
     public static GridData ExtractGridData(GridManager gridManager)
     {
@@ -40,7 +40,12 @@ public static class GridSerialiser
                 JunctionType = cell.JunctionType,
                 SpeedLimitMph = cell.SpeedLimitMph,
                 GiveWayDirections = [.. cell.GiveWayDirections],
-                BlockedTurns = cell.BlockedTurns.Select(t => new BlockedTurnData { From = t.From, To = t.To }).ToList()
+                BlockedTurns = cell.BlockedTurns.Select(t => new BlockedTurnData { From = t.From, To = t.To }).ToList(),
+                GreenDuration = cell.GreenDuration,
+                YellowDuration = cell.YellowDuration,
+                AllRedDuration = cell.AllRedDuration,
+                SpawnRateCarsPerMinute = cell.SpawnRateCarsPerMinute,
+                ExitWeight = cell.ExitWeight
             });
         }
 
@@ -74,7 +79,7 @@ public static class GridSerialiser
     }
 
     /// <summary>
-    /// Creates a grid from loaded data and applies all cell properties
+    /// Applies loaded JSON data back onto the visual grid
     /// </summary>
     public static void ApplyToGrid(GridData data, GridManager gridManager, double cellSizePixels)
     {
@@ -91,6 +96,11 @@ public static class GridSerialiser
                 continue;
             }
             cell.JunctionType = cd.JunctionType;
+            cell.GreenDuration = cd.GreenDuration;
+            cell.YellowDuration = cd.YellowDuration;
+            cell.AllRedDuration = cd.AllRedDuration;
+            cell.SpawnRateCarsPerMinute = cd.SpawnRateCarsPerMinute;
+            cell.ExitWeight = cd.ExitWeight;
             cell.GiveWayDirections.Clear();
             foreach (var dir in cd.GiveWayDirections)
             {
@@ -106,7 +116,7 @@ public static class GridSerialiser
     }
 
     /// <summary>
-    /// Returns the list of pre-built network names and their resource identifiers
+    /// Finds all preset networks compiled into the app
     /// </summary>
     public static List<(string DisplayName, string ResourceName)> GetPrebuiltNetworks()
     {
@@ -130,7 +140,7 @@ public static class GridSerialiser
     }
 
     /// <summary>
-    /// Loads a pre-built network from an embedded resource
+    /// Loads a preset network from an embedded resource
     /// </summary>
     public static GridData LoadPrebuilt(string resourceName)
     {
