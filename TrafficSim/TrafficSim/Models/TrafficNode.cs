@@ -1,8 +1,12 @@
 namespace TrafficSim.Models;
 
+/// <summary>
+/// A point where lanes connect in the road network
+/// </summary>
 public class TrafficNode(double x, double y, int gridX, int gridY)
 {
     public Guid Id { get; } = Guid.NewGuid();
+    
     public double X { get; } = x;
     public double Y { get; } = y;
 
@@ -10,20 +14,18 @@ public class TrafficNode(double x, double y, int gridX, int gridY)
     public int GridY { get; } = gridY;
 
     public List<Lane> OutgoingLanes { get; } = [];
-
     public List<Lane> IncomingLanes { get; } = [];
 
-    public Enums Enums { get; set; } = Enums.Regular;
+    public NodeType NodeType { get; set; } = NodeType.Regular;
 
     public bool IsGiveWay { get; set; }
     
-    // Approach nodes that have priority over this node
+    // Nodes that have priority over this node
     public List<TrafficNode> PriorityNodes { get; } = [];
 
-    // Traffic light controller for this node (null if not light-controlled)
     public TrafficLightController? TrafficLight { get; set; }
 
-    // The direction this node approaches the junction from
+    // The direction this node approaches a junction from
     public TrafficDirection ApproachDirection { get; set; } = TrafficDirection.None;
 
     // Fallback in case A* fails to find a path

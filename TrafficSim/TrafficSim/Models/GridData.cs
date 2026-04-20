@@ -24,6 +24,11 @@ public class CellData
     public int SpeedLimitMph { get; set; }
     public List<TrafficDirection> GiveWayDirections { get; set; } = [];
     public List<BlockedTurnData> BlockedTurns { get; set; } = [];
+    public double GreenDuration { get; set; } = 20.0;
+    public double YellowDuration { get; set; } = 3.0;
+    public double AllRedDuration { get; set; } = 1.0;
+    public double SpawnRateCarsPerMinute { get; set; } = 20.0;
+    public double ExitWeight { get; set; } = 1.0;
 }
 
 /// <summary>

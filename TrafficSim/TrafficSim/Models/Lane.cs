@@ -3,30 +3,48 @@ using System.Windows;
 namespace TrafficSim.Models;
 
 /// <summary>
-/// Represents a connection between two traffic nodes.
-/// Can be either straight or curved (using quadratic Bezier).
+/// A physical track connecting two traffic nodes that cars actually drive along
 /// </summary>
 public class Lane
 {
     public Guid Id { get; }
+    
+    // Where the lane starts and ends
     public TrafficNode StartNode { get; }
     public TrafficNode EndNode { get; }
+    
+    // Whether this lane is a straight line or a curve
     public LaneType Type { get; }
+    
+    // Real-world length in metres (used for calculating time to traverse)
     public double Length { get; private set; }
+    
+    // Point used to bend the Bezier curve for corners
     private Point? ControlPoint { get; }
     
+    // Directions of the lane segment
     public TrafficDirection StartDirection { get; }
     public TrafficDirection EndDirection { get; }
+    
+    // Speed limit in metres per second
     public double SpeedLimitMps { get; }
 
+    // List of other lanes that physically cross this one (creates yield scenarios)
     public List<Lane> ConflictingLanes { get; } = [];
+    
+    // Exact fractional points where this lane intersects with others
+    public List<LaneConflict> Conflicts { get; } = [];
+    
+    // True if this lane exists solely inside a junction to connect other lanes
+    public bool IsJunctionConnector { get; internal set; }
     
     private readonly Point _startPoint;
     private readonly Point _endPoint;
-    // Chached direction so isn't calculated on fly for simple node to node
+    
+    // Cached direction so we don't recalculate trig every frame for straight lines
     private readonly (double dx, double dy) _straightDirection;
 
-    public Lane(TrafficNode startNode, TrafficNode endNode, TrafficDirection startDirection, TrafficDirection endDirection, double speedLimitMps = 30 * 0.44704) //conversion to mps from 30 mph
+    public Lane(TrafficNode startNode, TrafficNode endNode, TrafficDirection startDirection, TrafficDirection endDirection, double speedLimitMps = 30 * 0.44704) // conversion to mps from 30 mph
     {
         Id = Guid.NewGuid();
         StartNode = startNode;
@@ -49,6 +67,7 @@ public class Lane
         {
             Type = LaneType.Straight;
             Length = CalculateStraightLength();
+            
             // Calculates the direction, and allows us to pre-define direction if straight
             var dx = _endPoint.X - _startPoint.X;
             var dy = _endPoint.Y - _startPoint.Y;
@@ -56,16 +75,19 @@ public class Lane
             _straightDirection = len > 0 ? (dx / len, dy / len) : (0, 0);
         }
         
+        // Link this lane back to its parent nodes so graph traversal works
         startNode.OutgoingLanes.Add(this);
         endNode.IncomingLanes.Add(this);
     }
     
+    // Gets X/Y coordinates based on a fraction (t) between 0.0 (start) and 1.0 (end)
     public Point GetPositionAt(double t)
     {
         t = Math.Clamp(t, 0.0, 1.0);
         
         if (Type == LaneType.Straight)
         {
+            // Simple linear interpolation
             return new Point(
                 _startPoint.X + (_endPoint.X - _startPoint.X) * t,
                 _startPoint.Y + (_endPoint.Y - _startPoint.Y) * t
@@ -87,6 +109,7 @@ public class Lane
         );
     }
     
+    // Gets the direction vector the car should face at position 't'
     public (double dx, double dy) GetDirectionAt(double t)
     {
         t = Math.Clamp(t, 0.0, 1.0);
@@ -107,6 +130,7 @@ public class Lane
         return length > 0 ? (dx / length, dy / length) : (0, 0);
     }
     
+    // Finds the intersection point to bend the corner around
     private static Point CalculateControlPoint(TrafficNode startNode, TrafficNode endNode, 
         TrafficDirection startDir, TrafficDirection endDir)
     {
@@ -139,6 +163,7 @@ public class Lane
         return Math.Sqrt(dx * dx + dy * dy);
     }
     
+    // Estimates curve length by breaking it into small straight segments
     private double CalculateCurveLength()
     {
         const int segments = 20;
@@ -165,4 +190,14 @@ public enum LaneType
 {
     Straight,
     Curved
+}
+
+/// <summary>
+/// Data mapping exactly where two lanes cross over each other
+/// </summary>
+public struct LaneConflict
+{
+    public Lane ConflictingLane { get; set; }
+    public double MyFraction { get; set; } // Position 0.0-1.0 on my lane
+    public double TheirFraction { get; set; } // Position 0.0-1.0 on their lane
 }

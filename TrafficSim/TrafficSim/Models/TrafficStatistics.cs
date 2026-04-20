@@ -14,7 +14,7 @@ public record LaneStatEntry(
 );
 
 /// <summary>
-/// Calculates and tracks traffic statistics while the program is running and finalises them when it stops.
+/// Live tracker for simulation statistics
 /// </summary>
 public class TrafficStatistics
 {
@@ -26,7 +26,7 @@ public class TrafficStatistics
 
     private readonly Dictionary<Guid, LaneAccumulator> _laneAccumulators = new();
     
-    // Calculated after sim finished
+    // Calculated when sim ends
     public int TotalVolume { get; private set; }
     public double FlowVehPerHour { get; private set; }
     public double AverageSpeedMph { get; private set; }
@@ -35,12 +35,12 @@ public class TrafficStatistics
     public IReadOnlyList<LaneStatEntry> PerLaneStats { get; private set; } = [];
 
     /// <summary>
-    /// Increase the completed count every time a car finishes its journey.
+    /// Called when a car reaches its exit
     /// </summary>
     public void RecordVehicleCompletion() => _completedVehicles++;
 
     /// <summary>
-    /// Take a snapshot of the current network state.
+    /// Records current frame stats for the final average
     /// </summary>
     public void RecordSnapshot(Dictionary<Guid, List<Car>> carsPerLane, IReadOnlyCollection<Lane> allLanes)
     {
@@ -81,20 +81,17 @@ public class TrafficStatistics
     }
 
     /// <summary>
-    /// Compute final statistics.
+    /// Convertssnapshots into final values
     /// </summary>
     public void Finalise(double totalSimTime, double totalLaneLengthKm)
     {
         SimulationDurationSeconds = totalSimTime;
         TotalVolume = _completedVehicles;
-        // Flow = total vehicles / total time * 3600 (convert sim seconds to hours)
+
         FlowVehPerHour = totalSimTime > 0 ? TotalVolume / totalSimTime * 3600.0 : 0;
 
-        // Average cars = total cars / total snapshots
         var avgNetworkCars = _snapshotCount > 0 ? _totalNetworkCars / _snapshotCount : 0;
-        // Average density veh/km = total cars / total lane length km
         AverageDensityVehPerKm = totalLaneLengthKm > 0 ? avgNetworkCars / totalLaneLengthKm : 0;
-        // Average speed km/h = total weighted speed / total snapshots
         AverageSpeedMph = _speedSnapshotCount > 0 ? _totalWeightedSpeedMps / _speedSnapshotCount * 2.23694 : 0;
 
         var laneStats = new List<LaneStatEntry>();
@@ -110,7 +107,7 @@ public class TrafficStatistics
     }
 
     /// <summary>
-    /// Tracks total statistics for a single lane across snapshots.
+    /// Tracks a single lane's stats over time
     /// </summary>
     private sealed class LaneAccumulator(Lane lane)
     {
@@ -135,7 +132,6 @@ public class TrafficStatistics
             var avgSpeedMph = avgSpeedMps * 2.23694;
             var lengthKm = lane.Length / 1000.0;
             var avgDensity = lengthKm > 0 ? avgOccupancy / lengthKm : 0.0;
-            // density veh/km × speed km/h = flow veh/h
             var avgFlow = avgDensity * (avgSpeedMps * 3.6);
 
             var route = $"({lane.StartNode.GridX},{lane.StartNode.GridY})\u2192({lane.EndNode.GridX},{lane.EndNode.GridY})";
