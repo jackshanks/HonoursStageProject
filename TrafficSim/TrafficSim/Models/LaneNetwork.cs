@@ -1,21 +1,24 @@
 namespace TrafficSim.Models;
 
+/// <summary>
+/// A collection of all nodes and lanes that make up the drivable road network
+/// </summary>
 public class LaneNetwork
 {
     private readonly Dictionary<Guid, TrafficNode> _nodes = new();
     private readonly Dictionary<Guid, Lane> _lanes = new();
     
+    // Quick lookup maps to find what is at a specific grid coordinate
     private readonly Dictionary<(int, int), TrafficNode> _cellToNode = new();
     private readonly Dictionary<(int, int), Lane> _cellToLane = new();
     
     public IReadOnlyCollection<TrafficNode> Nodes => _nodes.Values;
-
     public IReadOnlyCollection<Lane> Lanes => _lanes.Values;
 
-    public IEnumerable<TrafficNode> SpawnNodes => _nodes.Values.Where(n => n.Enums == Enums.Spawn);
+    public IEnumerable<TrafficNode> SpawnNodes => _nodes.Values.Where(n => n.NodeType == NodeType.Spawn);
+    public IEnumerable<TrafficNode> ExitNodes => _nodes.Values.Where(n => n.NodeType == NodeType.Exit);
 
-    public IEnumerable<TrafficNode> ExitNodes => _nodes.Values.Where(n => n.Enums == Enums.Exit);
-
+    // Scaling factor from grid to real world
     public double CellSizeMeters { get; init; } = 4.0;
 
     public List<TrafficLightController> TrafficLightControllers { get; } = [];
@@ -43,6 +46,7 @@ public class LaneNetwork
 
     public void Clear()
     {
+        // Wipe everything clean for a new simulation run
         _nodes.Clear();
         _lanes.Clear();
         _cellToNode.Clear();
@@ -50,6 +54,7 @@ public class LaneNetwork
         TrafficLightControllers.Clear();
     }
     
+    // Used mainly for debug and rendering stats
     public (int nodeCount, int laneCount, int straightLanes, int curvedLanes) GetStats()
     {
         var straightCount = 0;
