@@ -51,6 +51,10 @@ public partial class JunctionConfigWindow
 
         SetSelectedJunctionType(cell.JunctionType);
 
+        SliderGreenDuration.Value = cell.GreenDuration;
+        SliderYellowDuration.Value = cell.YellowDuration;
+        SliderAllRedDuration.Value = cell.AllRedDuration;
+
         foreach (var (checkBox, direction) in _giveWayDirectionCheckboxes)
         {
             checkBox.IsChecked = cell.GiveWayDirections.Contains(direction);
@@ -69,14 +73,32 @@ public partial class JunctionConfigWindow
 
     private void UpdateGiveWaySectionVisibility()
     {
-        if (GiveWaySection == null)
+        if (GiveWaySection == null || TrafficLightTimingsSection == null)
         {
             return;
         }
 
-        GiveWaySection.Visibility = DlgRbGiveWay.IsChecked == true
-            ? Visibility.Visible
-            : Visibility.Collapsed;
+        var isGiveWay = DlgRbGiveWay.IsChecked == true;
+        GiveWaySection.Visibility = isGiveWay ? Visibility.Visible : Visibility.Collapsed;
+        TrafficLightTimingsSection.Visibility = isGiveWay ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void SliderGreen_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (TxtGreenDuration != null)
+            TxtGreenDuration.Text = $"{(int)SliderGreenDuration.Value} s";
+    }
+
+    private void SliderYellow_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (TxtYellowDuration != null)
+            TxtYellowDuration.Text = $"{(int)SliderYellowDuration.Value} s";
+    }
+
+    private void SliderAllRed_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (TxtAllRedDuration != null)
+            TxtAllRedDuration.Text = $"{(int)SliderAllRedDuration.Value} s";
     }
 
     private void BtnOk_Click(object sender, RoutedEventArgs e)
@@ -91,9 +113,16 @@ public partial class JunctionConfigWindow
             .Select(item => (item.from, item.to))
             .ToList();
 
+        var greenDuration = SliderGreenDuration.Value;
+        var yellowDuration = SliderYellowDuration.Value;
+        var allRedDuration = SliderAllRedDuration.Value;
+
         foreach (var cell in _cells)
         {
             cell.JunctionType = junctionType;
+            cell.GreenDuration = greenDuration;
+            cell.YellowDuration = yellowDuration;
+            cell.AllRedDuration = allRedDuration;
 
             cell.GiveWayDirections.Clear();
             foreach (var direction in giveWayDirections)

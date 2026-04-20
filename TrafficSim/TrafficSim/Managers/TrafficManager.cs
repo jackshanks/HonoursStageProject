@@ -4,10 +4,8 @@ using TrafficSim.Utility;
 namespace TrafficSim.Managers;
 
 /// <summary>
-/// Manages and tracks all vehicles as they go through the network, as well as creating the network
+/// Manages vehicle physics, traffic rules, and simulation state
 /// </summary>
-/// <param name="gridManager"></param>
-/// <param name="config">Physics and behaviour constants</param>
 public class TrafficManager(GridManager gridManager, SimulationConfig? config = null)
 {
     private readonly SimulationConfig _config = config ?? SimulationConfig.Default;
@@ -25,6 +23,7 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
     private readonly Random _random = new();
     private readonly Dictionary<Guid, double> _spawnIntervals = new();
     private readonly Dictionary<Guid, double> _spawnCycles = new();
+    private readonly Dictionary<Guid, double> _carWaitTimers = new();
 
     private List<TrafficNode> _exitNodesCache = [];
     private Dictionary<Guid, double> _exitNodeWeights = new();
@@ -38,13 +37,8 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
     private const double StatsSnapshotInterval = 1.0;
     
     /// <summary>
-    /// Builds the network from the grid
+    /// Constructs the physics/routing network and initializes spawn states
     /// </summary>
-    /// <param name="grid">List of all cells</param>
-    /// <param name="width">Width of the grid in cells</param>
-    /// <param name="height">Height of the grid in cells</param>
-    /// <param name="cellSizeMeters">Size of each cell in meters</param>
-    /// <returns>If the network was successfully built</returns>
     public bool BuildNetwork(Cell[,] grid, int width, int height, double cellSizeMeters)
     {
         lock (_carsLock)
@@ -56,6 +50,7 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
             _spawnReleaseCooldown.Clear();
             _spawnIntervals.Clear();
             _spawnCycles.Clear();
+            _carWaitTimers.Clear();
 
             _laneNetwork = NetworkManager.BuildNetwork(grid, width, height, cellSizeMeters, _config);
 
@@ -84,9 +79,8 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
     }
     
     /// <summary>
-    /// Get all information about a network to be returned
+    /// Generates a diagnostic string about the current network scale
     /// </summary>
-    /// <returns>string of information</returns>
     public string GetNetworkInfo()
     {
         lock (_carsLock)
@@ -102,10 +96,8 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
     }
     
     /// <summary>
-    /// Updates the physics of all cars in the network
+    /// Master tick function: advances traffic lights, cars, and spawners
     /// </summary>
-    /// <param name="deltaTime">Time passed</param>
-    /// <param name="collisionsEnabled">If cars should collide or not</param>
     public void UpdatePhysics(double deltaTime, bool collisionsEnabled)
     {
         lock (_carsLock)
@@ -115,10 +107,8 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
                 return;
             }
             
-            // Used by cars to look up other nearby cars based on lanes
             UpdateSpatialIndex();
 
-            // Tick all traffic light controllers
             foreach (var controller in _laneNetwork.TrafficLightControllers)
             {
                 controller.Update(deltaTime);
@@ -128,6 +118,16 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
             {
                 var car = _cars[i];
                 
+                // Count very slow movement as 'waiting' for deadlock overrides
+                if (car.Speed < 0.5)
+                {
+                    _carWaitTimers[car.Id] = _carWaitTimers.GetValueOrDefault(car.Id) + deltaTime;
+                }
+                else
+                {
+                    _carWaitTimers[car.Id] = 0.0;
+                }
+
                 var holdAtLine = false;
                 if (car.CurrentLane != null)
                 {
@@ -144,20 +144,30 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
                     car.SetTargetSpeed(0.0, deltaTime);
                 }
 
+                var oldLane = car.CurrentLane;
                 var stillOnNetwork = holdAtLine || car.Move(deltaTime);
+                var newLane = car.CurrentLane;
+
+                // Keep spatial index synced so cars evaluate each other correctly this frame
+                if (oldLane != null && newLane != null && oldLane.Id != newLane.Id)
+                {
+                    if (_carsPerLane.TryGetValue(oldLane.Id, out var oldBucket))
+                    {
+                        oldBucket.Remove(car);
+                    }
+                    if (!_carsPerLane.TryGetValue(newLane.Id, out var newBucket))
+                    {
+                        newBucket = [];
+                        _carsPerLane[newLane.Id] = newBucket;
+                    }
+                    newBucket.Add(car);
+                }
 
                 if (stillOnNetwork) continue;
+                
+                _carWaitTimers.Remove(car.Id);
                 _statistics?.RecordVehicleCompletion();
                 _cars.RemoveAt(i);
-            }
-
-            // Update simulation time and take statistics snapshots
-            _simulationTime += deltaTime;
-            _statsAccumulator += deltaTime;
-            if (_statsAccumulator >= StatsSnapshotInterval)
-            {
-                _statsAccumulator -= StatsSnapshotInterval;
-                _statistics?.RecordSnapshot(_carsPerLane, _laneNetwork.Lanes);
             }
 
             // Accumulate waiting cars on entrance nodes
@@ -222,7 +232,7 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
     }
     
     /// <summary>
-    /// Organises cars into groups based on the lane they are on, which can be used by other cars to look up nearby cars.
+    /// Groups cars by lane to optimize distance checks
     /// </summary>
     private void UpdateSpatialIndex()
     {
@@ -262,8 +272,7 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
     private readonly record struct TrafficRuleDecision(double SpeedCap, bool ForceStop);
 
     /// <summary>
-    /// Run on each car to apply traffic rules in three steps:
-    /// perceive constraints, decide an aggregate speed cap, then execute with car-following.
+    /// Determines the safest max speed based on lights, junctions, and traffic ahead
     /// </summary>
     private bool ApplyTrafficRules(Car car, double deltaTime, bool enableCarFollowing)
     {
@@ -350,18 +359,11 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
 
         var remainingDist = (1.0 - car.LanePosition) * car.CurrentLane.Length;
 
-        // Approach zone: always cap speed so cars don't arrive at give-way lines at full speed
+        // Cap speed near give-way lines to allow reaction time
         if (remainingDist < _config.GiveWayApproachDistance)
         {
             var approachCap = car.MaxSpeed * _config.GiveWayApproachSpeedFactor;
             speedCap = Math.Min(speedCap, approachCap);
-        }
-
-        // Stop zone: yield to any conflicting traffic (including cars already inside the junction)
-        if (remainingDist < _config.GiveWayCheckDistance && HasConflictingTraffic(endNode))
-        {
-            var giveWaySpeed = car.MaxSpeed * (remainingDist / _config.GiveWayCheckDistance);
-            speedCap = Math.Min(speedCap, Math.Max(0.0, giveWaySpeed));
         }
 
         return speedCap;
@@ -369,143 +371,200 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
 
     private double DecideConnectorConflictConstraint(Car car, double speedCap)
     {
-        if (car.CurrentLane!.ConflictingLanes.Count > 0)
+        // 1. Inside the junction
+        if (car.CurrentLane!.Conflicts.Count > 0)
         {
-            // Already on a conflicting connector and giveway to any competing car closer to exit.
-            const double epsilon = 0.5;
-            var myRemaining = (1.0 - car.LanePosition) * car.CurrentLane.Length;
-            foreach (var conflicting in car.CurrentLane.ConflictingLanes)
+            var myProgress = car.LanePosition;
+            var carLengthFractionMine = Car.LengthMeters / car.CurrentLane.Length;
+            
+            foreach (var conflict in car.CurrentLane.Conflicts)
             {
-                if (!_carsPerLane.TryGetValue(conflicting.Id, out var conflictingCars))
-                {
-                    continue;
-                }
+                var conflicting = conflict.ConflictingLane;
+                if (!_carsPerLane.TryGetValue(conflicting.Id, out var conflictingCars)) continue;
+
+                var carLengthFractionTheirs = Car.LengthMeters / conflicting.Length;
 
                 foreach (var other in conflictingCars)
                 {
-                    var otherRemaining = (1.0 - other.LanePosition) * conflicting.Length;
+                    // Have we already passed the conflict point?
+                    if (myProgress > conflict.MyFraction + carLengthFractionMine) continue;
+                    // Have they already cleared the conflict point?
+                    if (other.LanePosition > conflict.TheirFraction + carLengthFractionTheirs) continue;
 
-                    if (otherRemaining > myRemaining + epsilon)
+                    var myDistToConflict = (conflict.MyFraction - myProgress) * car.CurrentLane.Length;
+                    var theirDistToConflict = (conflict.TheirFraction - other.LanePosition) * conflicting.Length;
+
+                    var myWait = _carWaitTimers.GetValueOrDefault(car.Id);
+                    var theirWait = _carWaitTimers.GetValueOrDefault(other.Id);
+                    
+                    var canOverride = false;
+                    if (myWait > 1.0 && theirWait > 1.0)
                     {
-                        continue;
+                        if (car.Id.CompareTo(other.Id) > 0) canOverride = true;
+                        else if (myWait > 2.0) canOverride = true;
                     }
 
-                    // Distances roughly equal use a GUID tiebreaker
-                    if (Math.Abs(otherRemaining - myRemaining) <= epsilon && car.Id.CompareTo(other.Id) < 0)
-                    {
-                        continue;
-                    }
+                    if (canOverride) continue;
 
-                    speedCap = 0.0;
-                    break;
+                    // If they are closer to the conflict point
+                    if (theirDistToConflict < myDistToConflict - 1.0)
+                    {
+                        return 0.0;
+                    }
+                    // If tied, use ID
+                    else if (theirDistToConflict < myDistToConflict + 1.0)
+                    {
+                        if (car.Id.CompareTo(other.Id) < 0) return 0.0;
+                    }
                 }
             }
-
-            return speedCap;
+            return speedCap; 
         }
 
-        // On an approach lane — check if the next connector in the route has any cars on a crossing connector
+        // 2. Approaching the junction
         foreach (var (futureLane, distToStart, _) in car.GetCachedPathAhead())
         {
-            if (futureLane.Id == car.CurrentLane.Id)
-            {
-                continue;
-            }
+            if (futureLane.Id == car.CurrentLane.Id) continue;
+            if (distToStart >= _config.GiveWayCheckDistance) break;
+            if (futureLane.Conflicts.Count == 0) continue;
 
-            if (distToStart >= _config.GiveWayCheckDistance)
+            var hasUnbreakableGiveWay = false;
+            
+            foreach (var conflict in futureLane.Conflicts)
             {
-                break;
-            }
+                var conflicting = conflict.ConflictingLane;
+                var carLengthFractionTheirs = Car.LengthMeters / conflicting.Length;
+                var myDistToConflict = distToStart + conflict.MyFraction * futureLane.Length;
 
-            if (futureLane.ConflictingLanes.Count == 0)
-            {
-                continue;
-            }
+                var thisConflictMustGiveWay = false;
+                Car? givingWayToInThisConflict = null;
 
-            var mustYield = false;
-            foreach (var conflicting in futureLane.ConflictingLanes)
-            {
-                // A car is already inside the conflicting connector — stop before entering
+                // Yield to anyone already inside the junction before their conflict point
                 if (_carsPerLane.TryGetValue(conflicting.Id, out var conflictingCars) && conflictingCars.Count > 0)
                 {
-                    mustYield = true;
-                    break;
+                    foreach (var other in conflictingCars)
+                    {
+                        var theirDistToConflict = (conflict.TheirFraction - other.LanePosition) * conflicting.Length;
+                        if (theirDistToConflict < -Car.LengthMeters) continue;
+
+                        if (other.Speed < 0.5 && theirDistToConflict > myDistToConflict + Car.LengthMeters) continue;
+
+                        thisConflictMustGiveWay = true;
+                        givingWayToInThisConflict = other;
+                        break;
+                    }
                 }
 
-                // A car on an approach lane is close enough to enter so one must giveway
-                if (conflicting.StartNode == null) continue;
-                if (conflicting.StartNode.IsGiveWay && conflicting.StartNode.PriorityNodes.Count > 0) continue;
-                foreach (var approachLane in conflicting.StartNode.IncomingLanes)
+                // Standard approach logic for uncontrolled and give-way junctions
+                if (!thisConflictMustGiveWay && conflicting.StartNode is { TrafficLight: null })
                 {
-                    if (!_carsPerLane.TryGetValue(approachLane.Id, out var approachCars)) continue;
-                    foreach (var other in approachCars)
+                    var ourStartNode = futureLane.StartNode;
+                    var otherHasPriority = ourStartNode.IsGiveWay && ourStartNode.PriorityNodes.Contains(conflicting.StartNode);
+                    var weHavePriority = conflicting.StartNode.IsGiveWay && conflicting.StartNode.PriorityNodes.Contains(ourStartNode);
+
+                    foreach (var approachLane in conflicting.StartNode.IncomingLanes)
                     {
-                        var otherDistToJunction = (1.0 - other.LanePosition) * approachLane.Length;
-                        if (otherDistToJunction < _config.GiveWayCheckDistance && car.Id.CompareTo(other.Id) > 0)
+                        if (!_carsPerLane.TryGetValue(approachLane.Id, out var approachCars)) continue;
+                        foreach (var other in approachCars)
                         {
-                            mustYield = true;
+                            var otherDistToStart = (1.0 - other.LanePosition) * approachLane.Length;
+                            var theirDistToConflict = otherDistToStart + conflict.TheirFraction * conflicting.Length;
+                            var checkDist = otherHasPriority ? _config.ConflictCheckDistance : _config.GiveWayCheckDistance;
+
+                            if (otherDistToStart >= checkDist) continue;
+                            if (!other.GetCachedPathAhead().Any(p => p.lane.Id == conflicting.Id)) continue;
+                            
+                            if (weHavePriority) continue;
+
+                            if (other.Speed < 0.5 && theirDistToConflict > myDistToConflict + Car.LengthMeters) continue;
+                            
+                            // Bypass give-way if the other car is blocked by traffic ahead anyway
+                            if (other.Speed < 0.5 && !IsExitRoadClear(conflicting, other)) continue;
+
+                            if (!otherHasPriority) 
+                            {
+                                if (myDistToConflict < theirDistToConflict - 2.0) continue;
+                                if (myDistToConflict < theirDistToConflict + 2.0 && car.Id.CompareTo(other.Id) > 0) continue;
+                            }
+
+                            thisConflictMustGiveWay = true;
+                            givingWayToInThisConflict = other;
                             break;
                         }
+                        if (thisConflictMustGiveWay) break;
                     }
-                    if (mustYield) break;
                 }
-                if (mustYield) break;
+
+                if (thisConflictMustGiveWay)
+                {
+                    var myWait = _carWaitTimers.GetValueOrDefault(car.Id);
+                    var theirWait = _carWaitTimers.GetValueOrDefault(givingWayToInThisConflict!.Id);
+
+                    var canOverride = false;
+                    if (myWait > 1.0 && theirWait > 1.0)
+                    {
+                        if (car.Id.CompareTo(givingWayToInThisConflict.Id) > 0)
+                        {
+                            canOverride = true; 
+                        }
+                        else if (myWait > 2.0)
+                        {
+                            canOverride = true; 
+                        }
+                    }
+
+                    if (!canOverride)
+                    {
+                        hasUnbreakableGiveWay = true;
+                        break;
+                    }
+                }
             }
 
-            // Anti-blocking: don't enter a connector if the exit road has no space.
-            // This prevents cars from becoming stranded inside the junction (queue spillback deadlock).
-            if (!mustYield && !IsExitRoadClear(futureLane, car))
+            if (hasUnbreakableGiveWay || !IsExitRoadClear(futureLane, car))
             {
-                mustYield = true;
+                const double stopBuffer = 0.25;
+                var distanceToStop = Math.Max(0.0, distToStart - stopBuffer);
+                var maxSafeSpeed = Math.Sqrt(2.0 * _config.Deceleration * distanceToStop);
+                return Math.Min(speedCap, Math.Max(0.0, maxSafeSpeed));
             }
-
-            if (mustYield)
-            {
-                speedCap = 0.0;
-            }
-
-            break; // Only check the nearest connector in the path
+            break; 
         }
-
         return speedCap;
     }
 
     /// <summary>
-    /// Returns true if the road segment after this connector has enough space for one more car.
-    /// Prevents cars from entering a connector when the exit is jammed (queue spillback).
+    /// Prevents cars entering a junction if their exit lane is blocked by traffic
     /// </summary>
     private bool IsExitRoadClear(Lane connectorLane, Car car)
     {
-        var exitNode = connectorLane.EndNode;
-
-        // Find the exit road lane the car will take after the connector.
-        // Prefer the route-based next lane; fall back to any non-connector outgoing lane.
-        Lane? exitLane = null;
         var pathAhead = car.GetCachedPathAhead();
         var foundConnector = false;
+        var requiredGap = Car.LengthMeters * 1.5 + _config.MinFollowingDistance;
+        var availableGap = 0.0;
+
         foreach (var (lane, _, _) in pathAhead)
         {
-            if (foundConnector && lane.ConflictingLanes.Count == 0)
+            if (!foundConnector)
             {
-                exitLane = lane;
-                break;
+                if (lane.Id == connectorLane.Id) foundConnector = true;
+                continue;
             }
-            if (lane.Id == connectorLane.Id)
-                foundConnector = true;
+
+            // Start accumulating clear gap sequence AFTER the connector
+            if (_carsPerLane.TryGetValue(lane.Id, out var carsOnExit) && carsOnExit.Count > 0)
+            {
+                var rearmostPosition = carsOnExit.Min(c => c.LanePosition);
+                availableGap += rearmostPosition * lane.Length;
+                return availableGap > requiredGap;
+            }
+
+            availableGap += lane.Length;
+            if (availableGap > requiredGap) return true;
         }
 
-        // Fall back: first non-connector outgoing lane from the exit node
-        exitLane ??= exitNode.OutgoingLanes.FirstOrDefault(l => l.ConflictingLanes.Count == 0);
-
-        if (exitLane == null) return true;
-
-        if (!_carsPerLane.TryGetValue(exitLane.Id, out var carsOnExit) || carsOnExit.Count == 0)
-            return true;
-
-        // Space is clear if the rearmost car on the exit lane is far enough from the start
-        var rearmostPosition = carsOnExit.Min(c => c.LanePosition);
-        var gapFromStart = rearmostPosition * exitLane.Length;
-        return gapFromStart > Car.LengthMeters + _config.MinFollowingDistance;
+        // If path ahead does not run into any cars, space is cleared
+        return true;
     }
 
     private double DecidePreLightConstraint(double speedCap, TrafficUtility.TrafficSignalState signalObservation)
@@ -535,45 +594,35 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
             car.SetTargetSpeed(0.0, deltaTime);
             return true;
         }
-
-        if (!enableCarFollowing)
+    
+        if (enableCarFollowing)
         {
-            ApplySpeedCap(car, decision.SpeedCap, deltaTime);
-            return false;
-        }
-
-        // Car-following always runs, constrained by the aggregate speed cap.
-        var (carAhead, distance) = FindCarAhead(car);
-        if (carAhead != null)
-        {
-            distance -= Car.LengthMeters;
-            if (distance < _config.MinFollowingDistance)
+            var (carAhead, distance) = FindCarAhead(car);
+            if (carAhead != null)
             {
-                car.Decelerate(deltaTime);
-                return false;
-            }
+                var bumperGap = distance - Car.LengthMeters;
+                
+                if (bumperGap <= _config.MinFollowingDistance)
+                {
+                    car.SetTargetSpeed(0.0, deltaTime);
+                    return true; 
+                }
+                
+                var safeBrakingDist = Math.Max(0.0, bumperGap - _config.MinFollowingDistance);
+                var approachSpeed = Math.Sqrt(2.0 * _config.Deceleration * safeBrakingDist);
 
-            if (distance < _config.SafeFollowingDistance)
-            {
-                var followSpeed = Math.Min(carAhead.Speed, car.MaxSpeed) * 0.8;
-                car.SetTargetSpeed(Math.Min(followSpeed, decision.SpeedCap), deltaTime);
-                return false;
-            }
-
-            if (distance < _config.ReactionDistance)
-            {
-                var followSpeed = car.MaxSpeed * (distance / _config.ReactionDistance);
-                car.SetTargetSpeed(Math.Min(followSpeed, decision.SpeedCap), deltaTime);
-                return false;
+                var followSpeedCap = approachSpeed + carAhead.Speed * 0.95; 
+            
+                decision = decision with { SpeedCap = Math.Min(followSpeedCap, decision.SpeedCap) };
             }
         }
 
         ApplySpeedCap(car, decision.SpeedCap, deltaTime);
-        return false;
+        return decision.SpeedCap <= 0.1 && car.Speed < 0.5;
     }
 
     /// <summary>
-    /// Decelerates toward the speed cap if below max speed, otherwise speeds up.
+    /// Applies target speed limits
     /// </summary>
     private static void ApplySpeedCap(Car car, double speedCap, double deltaTime)
     {
@@ -588,109 +637,77 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
     }
 
     /// <summary>
-    /// Last-moment safety guard to avoid interpenetration with the lead vehicle.
-    /// Uses current frame positions to prevent advancing farther than the available gap allows.
+    /// Final physical bounds check to absolutely prevent crashing into the car ahead
     /// </summary>
     private bool ShouldHoldForLeadVehicleGap(Car car, double deltaTime)
     {
         var (carAhead, distanceToAhead) = FindCarAhead(car);
-        if (carAhead == null || deltaTime <= 0.0)
-        {
-            return false;
-        }
+    
+        // Prevent collisions on straight paths (junctions are handled by ConflictConstraint)
+        if (carAhead == null || deltaTime <= 0.0) return false;
 
         var bumperGap = distanceToAhead - Car.LengthMeters;
+        
+        if (bumperGap <= _config.MinFollowingDistance + 0.01)
+        {
+            car.SetTargetSpeed(0.0, deltaTime);
+            return true; 
+        }
+
         var maxSafeTravel = Math.Max(0.0, bumperGap - _config.MinFollowingDistance);
         var projectedTravel = car.Speed * deltaTime;
+    
         return projectedTravel > maxSafeTravel;
     }
     
     /// <summary>
-    /// Traverses through the spatial index to find if there is a car on its lane and how close it is
+    /// Locates the nearest leading car along the immediate designated route
     /// </summary>
-    /// <param name="car">Car to operate on</param>
-    /// <returns>the nearest car and its distance from our car</returns>
     private (Car? car, double distance) FindCarAhead(Car car)
     {
-        if (car.CurrentLane == null)
-        {
-            return (null, double.MaxValue);
-        }
+        if (car.CurrentLane == null) return (null, double.MaxValue);
 
-        // Get cached path for quicker calc
         var pathAhead = car.GetCachedPathAhead();
-
         Car? closestCar = null;
         var minDistance = double.MaxValue;
 
         foreach (var (lane, startDistance, _) in pathAhead)
         {
-            if (!_carsPerLane.TryGetValue(lane.Id, out var carsOnLane))
+            // Check cars on our designated path
+            if (_carsPerLane.TryGetValue(lane.Id, out var carsOnLane))
             {
-                continue;
-            }
-
-            foreach (var otherCar in carsOnLane.Where(otherCar => otherCar.Id != car.Id))
-            {
-                if (lane.Id == car.CurrentLane.Id)
+                foreach (var otherCar in carsOnLane.Where(c => c.Id != car.Id))
                 {
-                    if (otherCar.LanePosition <= car.LanePosition)
+                    double totalDistance;
+                    if (lane.Id == car.CurrentLane.Id)
                     {
-                        continue;
+                        // FIX: Changed <= to < so cars at the exact same position don't turn invisible
+                        if (otherCar.LanePosition < car.LanePosition) continue;
+                        totalDistance = (otherCar.LanePosition - car.LanePosition) * lane.Length;
                     }
-                }
+                    else
+                    {
+                        totalDistance = startDistance + (otherCar.LanePosition * lane.Length);
+                    }
 
-                var startOffset = lane.Id == car.CurrentLane.Id ? car.LanePosition : 0.0;
-                var distanceAlongLane = (otherCar.LanePosition - startOffset) * lane.Length;
-                var totalDistance = startDistance + distanceAlongLane;
-
-                if (!(totalDistance > 0) || !(totalDistance < minDistance))
-                {
-                    continue;
+                    // FIX: Allow totalDistance of 0 to be caught to trigger emergency stops
+                    if (totalDistance < 0 || totalDistance >= minDistance) continue;
+                    minDistance = totalDistance;
+                    closestCar = otherCar;
                 }
-                minDistance = totalDistance;
-                closestCar = otherCar;
             }
+
+
         }
 
         return (closestCar, minDistance);
     }
     
-    /// <summary>
-    /// Checks if there is any traffic to give way to
-    /// </summary>
-    /// <param name="giveWayNode">TrafficNode object for the give-way node</param>
-    /// <returns></returns>
-    private bool HasConflictingTraffic(TrafficNode giveWayNode)
-    {
-        foreach (var priorityNode in giveWayNode.PriorityNodes)
-        {
-            // Cars still approaching on priority approach lanes
-            foreach (var lane in priorityNode.IncomingLanes)
-            {
-                if (!_carsPerLane.TryGetValue(lane.Id, out var carsOnLane)) continue;
-                foreach (var car in carsOnLane)
-                {
-                    if ((1.0 - car.LanePosition) * lane.Length < _config.ConflictCheckDistance)
-                        return true;
-                }
-            }
 
-            // Cars already inside the junction on priority connector lanes
-            foreach (var lane in priorityNode.OutgoingLanes)
-            {
-                if (_carsPerLane.TryGetValue(lane.Id, out var carsOnLane) && carsOnLane.Count > 0)
-                    return true;
-            }
-        }
-
-        return false;
-    }
 
     /// <summary>
     /// Gets the current traffic light phase for all traffic-light-controlled nodes
     /// </summary>
-    /// <returns>List of node positions and their current phase</returns>
     public List<(int gridX, int gridY, TrafficLightPhase phase)> GetTrafficLightRenderData()
     {
         lock (_carsLock)
@@ -715,7 +732,6 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
     /// <summary>
     /// Gets the positions of all give-way nodes
     /// </summary>
-    /// <returns>List of all give-way nodes</returns>
     public IEnumerable<(int gridX, int gridY)> GetGiveWayNodePositions()
     {
         lock (_carsLock)
@@ -789,6 +805,14 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
     /// <summary>
     /// Updates green/yellow/red durations on the traffic light controller at the given node.
     /// </summary>
+    public void ApplyJunctionTimingsFromCell(IEnumerable<Cell> cells)
+    {
+        foreach (var cell in cells)
+        {
+            SetTrafficLightTimings(cell.X, cell.Y, cell.GreenDuration, cell.YellowDuration, cell.AllRedDuration);
+        }
+    }
+
     public void SetTrafficLightTimings(int gridX, int gridY, double green, double yellow, double allRed)
     {
         lock (_carsLock)
@@ -867,18 +891,16 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
             if (cell == null) return null;
             var node = _laneNetwork.GetNodeAt(cell.X, cell.Y);
             if (node == null) return null;
-            if (node.Enums == Enums.Spawn) return (NodeKind.Spawn, cell.X, cell.Y);
-            if (node.Enums == Enums.Exit) return (NodeKind.Exit, cell.X, cell.Y);
+            if (node.NodeType == NodeType.Spawn) return (NodeKind.Spawn, cell.X, cell.Y);
+            if (node.NodeType == NodeType.Exit) return (NodeKind.Exit, cell.X, cell.Y);
             if (node.TrafficLight != null) return (NodeKind.TrafficLight, cell.X, cell.Y);
             return null;
         }
     }
 
     /// <summary>
-    /// Selects a weighted-random destination from the reachable exit nodes for a given spawn node
+    /// Weighted-randomly selects a valid exit node
     /// </summary>
-    /// <param name="spawnNode">The node the car is spawning at</param>
-    /// <returns>A reachable exit node</returns>
     private TrafficNode? SelectDestination(TrafficNode spawnNode)
     {
         if (!_reachableExits.TryGetValue(spawnNode.Id, out var reachable) || reachable.Count == 0)
@@ -886,19 +908,16 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
             return null;
         }
         
-        // Sum all weights for the reachable exits
         var totalWeight = 0.0;
         foreach (var exit in reachable)
         {
             totalWeight += _exitNodeWeights.GetValueOrDefault(exit.Id, 1.0); // Default to 1 if no exit weight is actually found
         }
 
-        // Returns a random number between 0 and 1 and multiplies by the total weight, effectively returning a value between 0 and the total weight
         var number = _random.NextDouble() * totalWeight;
         var cumulative = 0.0;
         foreach (var exit in reachable)
         {
-            // Each weight in the list is added together one by one until the random number is reached and that lane is selected
             cumulative += _exitNodeWeights.GetValueOrDefault(exit.Id, 1.0);
             if (number < cumulative)
             {
@@ -906,14 +925,12 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
             }
         }
 
-        return reachable[^1]; // returns last item to prevent any errors
+        return reachable[^1];
     }
 
     /// <summary>
-    /// Attempts to spawn a car at the given node with a destination
+    /// Spawns a car at the given node if sufficient physical space exists
     /// </summary>
-    /// <param name="node">The node to spawn the car at</param>
-    /// <returns>If the car was successfully spawned</returns>
     private bool TrySpawnAtNode(TrafficNode node)
     {
         if (node.OutgoingLanes.Count == 0)
@@ -958,8 +975,8 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
 
         const double fiveMphInMps = 5.0 * 0.44704;
         var speedOffset = (_random.NextDouble() * 2.0 - 1.0) * fiveMphInMps;
-        var colors = Enum.GetValues<CarColor>();
-        var color = colors[_random.Next(colors.Length)];
+        var colours = Enum.GetValues<CarColour>();
+        var colour = colours[_random.Next(colours.Length)];
 
         var hardMinimumGap = Car.LengthMeters + _config.MinFollowingDistance;
         if (minDistAhead < hardMinimumGap)
@@ -974,8 +991,7 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
         if (minDistAhead < double.MaxValue)
         {
             var balancedGapDistance = Math.Max(_config.ReactionDistance * _config.SpawnBalancedGapFactor, hardMinimumGap);
-            reactionScaledSpeed = maxSpawnSpeed *
-                                  Math.Clamp((minDistAhead - hardMinimumGap) / Math.Max(0.1, balancedGapDistance - hardMinimumGap), 0.0, 1.0);
+            reactionScaledSpeed = maxSpawnSpeed * Math.Clamp((minDistAhead - hardMinimumGap) / Math.Max(0.1, balancedGapDistance - hardMinimumGap), 0.0, 1.0);
 
             var usableGapForStopping = Math.Max(0.0, minDistAhead - hardMinimumGap);
             stoppingEnvelopeSpeed = Math.Sqrt(2.0 * Math.Max(0.1, _config.Deceleration) * usableGapForStopping);
@@ -983,7 +999,7 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
 
         var initialSpeed = Math.Min(maxSpawnSpeed, Math.Min(reactionScaledSpeed, stoppingEnvelopeSpeed));
 
-        var car = new Car(lane, speedOffset, color, _config, 0.0, route, destination, initialSpeed);
+        var car = new Car(lane, speedOffset, colour, _config, 0.0, route, destination, initialSpeed);
         _cars.Add(car);
         return true;
     }
@@ -1050,9 +1066,8 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
     }
     
     /// <summary>
-    /// Get render data for the cars
+    /// Extracts simplified vehicle poses for UI rendering
     /// </summary>
-    /// <param name="output"></param>
     public void GetRenderData(List<CarRenderData> output)
     {
         output.Clear();
@@ -1061,7 +1076,7 @@ public class TrafficManager(GridManager gridManager, SimulationConfig? config = 
             foreach (var c in _cars)
             {
                 var (dx, dy) = c.GetDirection();
-                output.Add(new CarRenderData(c.X, c.Y, dx, dy, c.Color));
+                output.Add(new CarRenderData(c.X, c.Y, dx, dy, c.Colour));
             }
         }
     }

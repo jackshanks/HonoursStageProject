@@ -33,7 +33,7 @@
                     <TextBlock Text="VOLUME" Style="{StaticResource SectionLabel}"/>
                     <TextBlock x:Name="TxtVolume" Text="0"
                                FontSize="26" FontWeight="Bold"
-                               Foreground="{StaticResource AccentColor}"/>
+                               Foreground="{StaticResource AccentColour}"/>
                     <TextBlock Text="vehicles completed" Foreground="{StaticResource TextSecondary}" FontSize="11"/>
                 </StackPanel>
             </Border>
@@ -43,7 +43,7 @@
                     <TextBlock Text="FLOW" Style="{StaticResource SectionLabel}"/>
                     <TextBlock x:Name="TxtFlow" Text="0"
                                FontSize="26" FontWeight="Bold"
-                               Foreground="{StaticResource AccentColor}"/>
+                               Foreground="{StaticResource AccentColour}"/>
                     <TextBlock Text="vehicles / hour" Foreground="{StaticResource TextSecondary}" FontSize="11"/>
                 </StackPanel>
             </Border>
@@ -53,7 +53,7 @@
                     <TextBlock Text="AVG SPEED" Style="{StaticResource SectionLabel}"/>
                     <TextBlock x:Name="TxtSpeed" Text="0"
                                FontSize="26" FontWeight="Bold"
-                               Foreground="{StaticResource AccentColor}"/>
+                               Foreground="{StaticResource AccentColour}"/>
                     <TextBlock Text="mph (space-mean)" Foreground="{StaticResource TextSecondary}" FontSize="11"/>
                 </StackPanel>
             </Border>
@@ -63,7 +63,7 @@
                     <TextBlock Text="DENSITY" Style="{StaticResource SectionLabel}"/>
                     <TextBlock x:Name="TxtDensity" Text="0"
                                FontSize="26" FontWeight="Bold"
-                               Foreground="{StaticResource AccentColor}"/>
+                               Foreground="{StaticResource AccentColour}"/>
                     <TextBlock Text="vehicles / km" Foreground="{StaticResource TextSecondary}" FontSize="11"/>
                 </StackPanel>
             </Border>

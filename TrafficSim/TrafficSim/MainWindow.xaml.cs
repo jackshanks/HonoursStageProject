@@ -132,6 +132,7 @@ public partial class MainWindow
         SimRunControlsPanel.Visibility = _isNetworkBuilt ? Visibility.Visible : Visibility.Collapsed;
         BtnStartSim.IsEnabled = !_isSimulationRunning;
         BtnStopSim.IsEnabled = _isSimulationRunning;
+        BtnViewStatistics.IsEnabled = _trafficManager.GetFinalStatistics() != null;
         StatusText.Text = GetStatusText();
     }
 
@@ -370,7 +371,6 @@ public partial class MainWindow
         }
 
         _trafficManager.StartStatistics();
-        BtnViewStatistics.Visibility = Visibility.Collapsed;
         _isSimulationRunning = true;
         StartPhysicsThread();
         UpdateUiState();
@@ -380,12 +380,18 @@ public partial class MainWindow
     {
         await StopSimulationAsync(clearTraffic: false);
         ClearSimNodeSelection();
-        BtnViewStatistics.Visibility = Visibility.Visible;
         UpdateUiState();
     }
 
-    private void BtnViewStatistics_Click(object sender, RoutedEventArgs e)
+    private async void BtnViewStatistics_Click(object sender, RoutedEventArgs e)
     {
+        if (_isSimulationRunning)
+        {
+            await StopSimulationAsync(clearTraffic: false);
+            ClearSimNodeSelection();
+            UpdateUiState();
+        }
+
         var stats = _trafficManager.GetFinalStatistics();
         if (stats == null)
         {
@@ -489,6 +495,13 @@ public partial class MainWindow
 
         var clickPosition = e.GetPosition(GridCanvas);
 
+        var group = FindClickedJunctionGroup(clickPosition);
+        if (group != null)
+        {
+            OpenJunctionConfig(group);
+            return;
+        }
+
         if (_isSimulationRunning)
         {
             SelectSimNode(clickPosition.X, clickPosition.Y);
@@ -497,13 +510,6 @@ public partial class MainWindow
 
         if (_isNetworkBuilt)
         {
-            return;
-        }
-
-        var group = FindClickedJunctionGroup(clickPosition);
-        if (group != null)
-        {
-            OpenJunctionConfig(group);
             return;
         }
 
@@ -706,7 +712,10 @@ public partial class MainWindow
     private void OpenJunctionConfig(List<Cell> cells)
     {
         var dialog = new JunctionConfigWindow(cells) { Owner = this };
-        dialog.ShowDialog();
+        if (dialog.ShowDialog() == true && _isSimulationRunning)
+        {
+            _trafficManager.ApplyJunctionTimingsFromCell(cells);
+        }
         _gridManager.RenderGrid();
     }
 
@@ -930,10 +939,10 @@ public partial class MainWindow
         TxtSpawnInterval.Text = $"{SliderSpawnInterval.Value:F0} cars/min";
         if (_selectedSimNode?.Kind == NodeKind.Spawn)
         {
-            _trafficManager.SetSpawnRate(
-                _selectedSimNode.Value.GridX,
-                _selectedSimNode.Value.GridY,
-                SliderSpawnInterval.Value);
+            var (_, gx, gy) = _selectedSimNode.Value;
+            _trafficManager.SetSpawnRate(gx, gy, SliderSpawnInterval.Value);
+            var cell = _gridManager.GetCellFromGridCoords(gx, gy);
+            if (cell != null) cell.SpawnRateCarsPerMinute = SliderSpawnInterval.Value;
         }
     }
 
@@ -945,13 +954,11 @@ public partial class MainWindow
         }
 
         TxtExitWeight.Text = $"{SliderExitWeight.Value:F1}";
-        if (_selectedSimNode?.Kind == NodeKind.Exit)
-        {
-            _trafficManager.SetExitNodeWeight(
-                _selectedSimNode.Value.GridX,
-                _selectedSimNode.Value.GridY,
-                SliderExitWeight.Value);
-        }
+        if (_selectedSimNode?.Kind != NodeKind.Exit) return;
+        var (_, gx, gy) = _selectedSimNode.Value;
+        _trafficManager.SetExitNodeWeight(gx, gy, SliderExitWeight.Value);
+        var cell = _gridManager.GetCellFromGridCoords(gx, gy);
+        if (cell != null) cell.ExitWeight = SliderExitWeight.Value;
     }
 
     private void OnTrafficLightSliderChanged(object sender, RoutedPropertyChangedEventArgs<double> e)

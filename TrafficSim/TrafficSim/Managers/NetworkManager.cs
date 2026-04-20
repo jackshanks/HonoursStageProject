@@ -261,7 +261,7 @@ public static class NetworkManager
     }
 
     /// <summary>
-    /// Flags crossing paths for yielding mechanics inside a junction
+    /// Flags crossing paths for give-way mechanics inside a junction
     /// </summary>
     private static void ComputeConflictingLanes(List<Lane> connectors)
     {
@@ -318,7 +318,7 @@ public static class NetworkManager
     }
 
     /// <summary>
-    /// Establishes yielding logic at stopline nodes
+    /// Establishes give-way logic at stopline nodes
     /// </summary>
     private static void BuildGiveWayJunction(Cell[,] grid, HashSet<(int, int)> group,
         List<(TrafficNode node, TrafficDirection dir)> approachNodes)
@@ -363,26 +363,26 @@ public static class NetworkManager
             }
         }
 
-        var colorAssignment = new Dictionary<TrafficDirection, int>();
+        var colourAssignment = new Dictionary<TrafficDirection, int>();
         foreach (var dir in directionConflicts.Keys)
         {
-            var usedColors = directionConflicts[dir]
-                .Where(d => colorAssignment.ContainsKey(d))
-                .Select(d => colorAssignment[d])
+            var usedColours = directionConflicts[dir]
+                .Where(d => colourAssignment.ContainsKey(d))
+                .Select(d => colourAssignment[d])
                 .ToHashSet();
 
-            var color = 0;
-            while (usedColors.Contains(color)) color++;
-            colorAssignment[dir] = color;
+            var colour = 0;
+            while (usedColours.Contains(colour)) colour++;
+            colourAssignment[dir] = colour;
         }
 
         var phaseGroupsDict = new Dictionary<int, HashSet<TrafficDirection>>();
-        foreach (var (dir, color) in colorAssignment)
+        foreach (var (dir, colour) in colourAssignment)
         {
-            if (!phaseGroupsDict.TryGetValue(color, out var phaseGroup))
+            if (!phaseGroupsDict.TryGetValue(colour, out var phaseGroup))
             {
                 phaseGroup = [];
-                phaseGroupsDict[color] = phaseGroup;
+                phaseGroupsDict[colour] = phaseGroup;
             }
             phaseGroup.Add(dir);
         }

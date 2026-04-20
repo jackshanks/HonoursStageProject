@@ -7,7 +7,7 @@
         <SolidColorBrush x:Key="WindowBackground" Color="#D4D0C8"/>
         <SolidColorBrush x:Key="PanelBackground" Color="#ECE9D8"/>
         <SolidColorBrush x:Key="SurfaceBackground" Color="#F7F4EC"/>
-        <SolidColorBrush x:Key="AccentColor" Color="#2F4F6F"/>
+        <SolidColorBrush x:Key="AccentColour" Color="#2F4F6F"/>
         <SolidColorBrush x:Key="TextPrimary" Color="#1F1F1F"/>
         <SolidColorBrush x:Key="TextSecondary" Color="#4E4E4E"/>
         <SolidColorBrush x:Key="BorderBrush" Color="#8F8A7A"/>

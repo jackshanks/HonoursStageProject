@@ -27,7 +27,7 @@ public class Car
     
     private readonly SimulationConfig _config;
 
-    // The visual colour of the car (using American spelling for the C# property, but storing a set enum value)
+    // The visual colour of the car
     public CarColour Colour { get; }
     
     // Standard car dimensions in metres - based loosely on standard UK road cars
@@ -173,7 +173,7 @@ public class Car
     
     /// <summary>
     /// Looks ahead along the car's upcoming route to build a sequence of upcoming lanes and distances.
-    /// Essential for collision detection and yielding at junctions.
+    /// Essential for collision detection and giving way at junctions.
     /// </summary>
     public List<(Lane lane, double distanceToStart, double distanceToEnd)> GetCachedPathAhead()
     {

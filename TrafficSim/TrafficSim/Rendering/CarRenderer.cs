@@ -12,7 +12,7 @@ public class CarRenderer
 {
     private readonly DrawingVisual _carsVisual;
     
-    private static readonly Dictionary<CarColour, Brush> ColorBrushMap = new()
+    private static readonly Dictionary<CarColour, Brush> ColourBrushMap = new()
     {
         { CarColour.Red, Brushes.Red },
         { CarColour.Blue, Brushes.Blue },
@@ -61,7 +61,7 @@ public class CarRenderer
         var widthPx = Car.WidthMeters * pixelsPerMeter;
         var lengthPx = Car.LengthMeters * pixelsPerMeter;
         
-        var brush = ColorBrushMap.GetValueOrDefault(carData.Colour, Brushes.Gray);
+        var brush = ColourBrushMap.GetValueOrDefault(carData.Colour, Brushes.Gray);
         
         var carX = carData.X * pixelsPerMeter;
         var carY = carData.Y * pixelsPerMeter;

@@ -29,7 +29,7 @@ public class Lane
     // Speed limit in metres per second
     public double SpeedLimitMps { get; }
 
-    // List of other lanes that physically cross this one (creates yield scenarios)
+    // List of other lanes that physically cross this one (creates give-way scenarios)
     public List<Lane> ConflictingLanes { get; } = [];
     
     // Exact fractional points where this lane intersects with others

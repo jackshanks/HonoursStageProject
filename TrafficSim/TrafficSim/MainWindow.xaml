@@ -220,7 +220,6 @@
                                 </Grid>
 
                                 <Button x:Name="BtnViewStatistics" Content="View Statistics"
-                                        Visibility="Collapsed"
                                         Click="BtnViewStatistics_Click"
                                         Margin="0,0,0,6"/>
 
@@ -231,7 +230,7 @@
                                 <DockPanel LastChildFill="False" Margin="0,0,0,4">
                                     <TextBlock Text="Speed" Style="{StaticResource LabelText}"/>
                                     <TextBlock x:Name="TxtSimSpeed" Text="1.0x" FontWeight="Bold"
-                                               Foreground="{StaticResource AccentColor}" DockPanel.Dock="Right"/>
+                                               Foreground="{StaticResource AccentColour}" DockPanel.Dock="Right"/>
                                 </DockPanel>
                                 <Slider x:Name="SliderSimSpeed" Minimum="0.1" Maximum="3.0" Value="1.0"
                                         TickFrequency="0.1" IsSnapToTickEnabled="True" Margin="0,0,0,10"/>
@@ -249,7 +248,7 @@
                                     <DockPanel LastChildFill="False" Margin="0,0,0,4">
                                         <TextBlock Text="Spawn Rate" Style="{StaticResource LabelText}"/>
                                         <TextBlock x:Name="TxtSpawnInterval" Text="8 cars/min" FontWeight="Bold"
-                                                   Foreground="{StaticResource AccentColor}" DockPanel.Dock="Right"/>
+                                                   Foreground="{StaticResource AccentColour}" DockPanel.Dock="Right"/>
                                     </DockPanel>
                                     <Slider x:Name="SliderSpawnInterval" Minimum="1" Maximum="120" Value="8"
                                             TickFrequency="5" IsSnapToTickEnabled="True" Margin="0,0,0,8"/>
@@ -261,7 +260,7 @@
                                     <DockPanel LastChildFill="False" Margin="0,0,0,4">
                                         <TextBlock Text="Weight" Style="{StaticResource LabelText}"/>
                                         <TextBlock x:Name="TxtExitWeight" Text="1.0" FontWeight="Bold"
-                                                   Foreground="{StaticResource AccentColor}" DockPanel.Dock="Right"/>
+                                                   Foreground="{StaticResource AccentColour}" DockPanel.Dock="Right"/>
                                     </DockPanel>
                                     <Slider x:Name="SliderExitWeight" Minimum="0" Maximum="5.0" Value="1.0"
                                             TickFrequency="0.5" IsSnapToTickEnabled="True" Margin="0,0,0,8"/>
@@ -273,21 +272,21 @@
                                     <DockPanel LastChildFill="False" Margin="0,0,0,4">
                                         <TextBlock Text="Green" Style="{StaticResource LabelText}"/>
                                         <TextBlock x:Name="TxtGreenDuration" Text="20 s" FontWeight="Bold"
-                                                   Foreground="{StaticResource AccentColor}" DockPanel.Dock="Right"/>
+                                                   Foreground="{StaticResource AccentColour}" DockPanel.Dock="Right"/>
                                     </DockPanel>
                                     <Slider x:Name="SliderGreenDuration" Minimum="5" Maximum="60" Value="20"
                                             TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,0,0,6"/>
                                     <DockPanel LastChildFill="False" Margin="0,0,0,4">
                                         <TextBlock Text="Yellow" Style="{StaticResource LabelText}"/>
                                         <TextBlock x:Name="TxtYellowDuration" Text="3.0 s" FontWeight="Bold"
-                                                   Foreground="{StaticResource AccentColor}" DockPanel.Dock="Right"/>
+                                                   Foreground="{StaticResource AccentColour}" DockPanel.Dock="Right"/>
                                     </DockPanel>
                                     <Slider x:Name="SliderYellowDuration" Minimum="1" Maximum="10" Value="3"
                                             TickFrequency="0.5" IsSnapToTickEnabled="True" Margin="0,0,0,6"/>
                                     <DockPanel LastChildFill="False" Margin="0,0,0,4">
                                         <TextBlock Text="All-Red Gap" Style="{StaticResource LabelText}"/>
                                         <TextBlock x:Name="TxtAllRedDuration" Text="1.0 s" FontWeight="Bold"
-                                                   Foreground="{StaticResource AccentColor}" DockPanel.Dock="Right"/>
+                                                   Foreground="{StaticResource AccentColour}" DockPanel.Dock="Right"/>
                                     </DockPanel>
                                     <Slider x:Name="SliderAllRedDuration" Minimum="0" Maximum="5" Value="1"
                                             TickFrequency="0.5" IsSnapToTickEnabled="True" Margin="0,0,0,8"/>
@@ -330,14 +329,14 @@
                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
                 <DockPanel>
                     <TextBlock x:Name="FpsText" Text="FPS: --" FontWeight="Bold"
-                               Foreground="{StaticResource AccentColor}" DockPanel.Dock="Right" Margin="15,0,0,0"/>
+                               Foreground="{StaticResource AccentColour}" DockPanel.Dock="Right" Margin="15,0,0,0"/>
                     <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" Margin="15,0,0,0">
-                        <TextBlock Text="Cars: " FontWeight="Bold" Foreground="{StaticResource AccentColor}"/>
+                        <TextBlock Text="Cars: " FontWeight="Bold" Foreground="{StaticResource AccentColour}"/>
                         <TextBlock x:Name="CarCountText" Text="0" FontWeight="Bold"
-                                   Foreground="{StaticResource AccentColor}"/>
+                                   Foreground="{StaticResource AccentColour}"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="STATUS: " FontWeight="Bold" Foreground="{StaticResource AccentColor}"/>
+                        <TextBlock Text="STATUS: " FontWeight="Bold" Foreground="{StaticResource AccentColour}"/>
                         <TextBlock x:Name="StatusText"
                                    Text="Draw roads with left-click, then build network to start."
                                    Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap"/>

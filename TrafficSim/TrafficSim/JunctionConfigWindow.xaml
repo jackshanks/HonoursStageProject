@@ -30,7 +30,7 @@
 
             <StackPanel x:Name="GiveWaySection" Margin="0,0,0,14">
                 <TextBlock Text="GIVE WAY DIRECTIONS" Style="{StaticResource SectionLabel}"/>
-                <TextBlock Text="Approaching traffic from checked directions must yield to others."
+                <TextBlock Text="Approaching traffic from checked directions must give way to others."
                            Foreground="{StaticResource TextSecondary}" FontSize="10" Margin="0,0,0,8" TextWrapping="Wrap"/>
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -49,6 +49,34 @@
                               Margin="0,0,4,0"/>
                     <CheckBox Grid.Row="2" Grid.Column="1" x:Name="DlgChkGWWest" Content="West"/>
                 </Grid>
+            </StackPanel>
+
+            <StackPanel x:Name="TrafficLightTimingsSection" Margin="0,0,0,14">
+                <TextBlock Text="SIGNAL TIMINGS" Style="{StaticResource SectionLabel}"/>
+                <DockPanel LastChildFill="False" Margin="0,0,0,2">
+                    <TextBlock Text="Green" FontSize="11" Foreground="{StaticResource TextSecondary}"/>
+                    <TextBlock x:Name="TxtGreenDuration" Text="20 s" FontWeight="Bold"
+                               Foreground="{StaticResource AccentColour}" DockPanel.Dock="Right"/>
+                </DockPanel>
+                <Slider x:Name="SliderGreenDuration" Minimum="5" Maximum="60" Value="20"
+                        TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,0,0,6"
+                        ValueChanged="SliderGreen_ValueChanged"/>
+                <DockPanel LastChildFill="False" Margin="0,0,0,2">
+                    <TextBlock Text="Yellow" FontSize="11" Foreground="{StaticResource TextSecondary}"/>
+                    <TextBlock x:Name="TxtYellowDuration" Text="3 s" FontWeight="Bold"
+                               Foreground="{StaticResource AccentColour}" DockPanel.Dock="Right"/>
+                </DockPanel>
+                <Slider x:Name="SliderYellowDuration" Minimum="1" Maximum="10" Value="3"
+                        TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,0,0,6"
+                        ValueChanged="SliderYellow_ValueChanged"/>
+                <DockPanel LastChildFill="False" Margin="0,0,0,2">
+                    <TextBlock Text="All-Red" FontSize="11" Foreground="{StaticResource TextSecondary}"/>
+                    <TextBlock x:Name="TxtAllRedDuration" Text="1 s" FontWeight="Bold"
+                               Foreground="{StaticResource AccentColour}" DockPanel.Dock="Right"/>
+                </DockPanel>
+                <Slider x:Name="SliderAllRedDuration" Minimum="0" Maximum="5" Value="1"
+                        TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,0,0,0"
+                        ValueChanged="SliderAllRed_ValueChanged"/>
             </StackPanel>
 
             <TextBlock Text="TURN RESTRICTIONS" Style="{StaticResource SectionLabel}"/>
